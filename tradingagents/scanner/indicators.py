@@ -85,10 +85,14 @@ def pct_return(close: pd.Series, n: int) -> pd.Series:
     return close / close.shift(n) - 1.0
 
 
-def realized_vol(close: pd.Series, n: int = 63) -> pd.Series:
-    """Annualised volatility of daily log returns over ``n`` bars (sqrt(252) scaling)."""
+def realized_vol(close: pd.Series, n: int = 63, periods_per_year: int = TRADING_DAYS) -> pd.Series:
+    """Annualised volatility of daily log returns over ``n`` bars.
+
+    Scaled by sqrt(``periods_per_year``): 252 for stocks, 365 for crypto, whose bars are
+    calendar days.
+    """
     logret = np.log(close / close.shift(1))
-    return logret.rolling(n, min_periods=n).std() * np.sqrt(TRADING_DAYS)
+    return logret.rolling(n, min_periods=n).std() * np.sqrt(periods_per_year)
 
 
 def dist_from_high(close: pd.Series, n: int = TRADING_DAYS) -> pd.Series:

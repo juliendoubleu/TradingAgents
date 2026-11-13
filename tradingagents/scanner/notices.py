@@ -1,0 +1,81 @@
+"""Warnings and skip reasons as a code plus parameters, rendered in English or German.
+
+Same idea as ``Signal.reason_items``: the scan stores *what* happened, the report picks
+the language. ``Notice`` is a ``str`` holding the English text, so older code that
+prints, searches or serialises a warning or reason as a plain string keeps working.
+"""
+
+from __future__ import annotations
+
+_TEXT = {
+    "no_data": {"en": "no price data from Yahoo", "de": "keine Kursdaten von Yahoo"},
+    "no_price_data": {"en": "no price data", "de": "keine Kursdaten"},
+    "stale": {"en": "last bar {last} is stale", "de": "letzter Kurs vom {last} ist veraltet"},
+    "short_history": {
+        "en": "only {n} bars of history, need {need}",
+        "de": "nur {n} Kurse Historie, benötigt werden {need}",
+    },
+    "no_last_close": {"en": "no valid last close", "de": "kein gültiger letzter Schlusskurs"},
+    "benchmark_missing": {
+        "en": "Benchmark {bench} had no data: relative strength is 0 for all and the regime "
+              "has no benchmark facts.",
+        "de": "Für den Benchmark {bench} gab es keine Daten: die relative Stärke ist überall 0 "
+              "und das Regime hat keine Benchmark-Fakten.",
+    },
+    "vix_missing": {"en": "VIX had no data: it adds no points to the regime.",
+                    "de": "Für den VIX gab es keine Daten: er gibt dem Regime keine Punkte."},
+    "regime_input_missing": {"en": "Regime input not available: {item}.",
+                             "de": "Regime-Eingabe nicht verfügbar: {item_de}."},
+    "skipped_summary": {
+        "en": "{n} of {total} instruments were skipped (see list).",
+        "de": "{n} von {total} Instrumenten wurden übersprungen (siehe Liste).",
+    },
+    "stale_data": {
+        "en": "The newest price bar is {asof}, {lag} days before the requested {requested}.",
+        "de": "Der neueste Kurs ist vom {asof}, {lag} Tage vor dem angefragten {requested}.",
+    },
+    "running_bar_removed": {
+        "en": "{n} of {total} instruments had a still-running daily bar removed (their exchange "
+              "session was not over yet); the figures use the last finished session.",
+        "de": "Bei {n} von {total} Instrumenten wurde ein noch laufender Tageskurs entfernt "
+              "(die Börsensitzung war noch nicht beendet); die Zahlen nutzen die letzte "
+              "abgeschlossene Sitzung.",
+    },
+    "past_date": {
+        "en": "Scan date {date} is in the past: prices are back-adjusted for later dividends "
+              "and splits, so price levels differ from what actually traded then.",
+        "de": "Das Scan-Datum {date} liegt in der Vergangenheit: Kurse sind rückwirkend um "
+              "spätere Dividenden und Splits bereinigt, die Kursniveaus weichen daher von den "
+              "damals gehandelten ab.",
+    },
+}
+
+_ITEM_DE = {
+    "benchmark trend": "Benchmark-Trend",
+    "benchmark 3-month return": "Benchmark-3-Monats-Rendite",
+    "breadth": "Marktbreite",
+    "VIX": "VIX",
+}
+
+
+class Notice(str):
+    """A translatable message: ``code`` + ``params``; ``str(notice)`` is the English text."""
+
+    code: str
+    params: dict
+
+    def __new__(cls, code: str, **params) -> Notice:
+        if code == "regime_input_missing":
+            params.setdefault("item_de", _ITEM_DE.get(params.get("item", ""), params.get("item")))
+        obj = super().__new__(cls, _TEXT[code]["en"].format(**params))
+        obj.code = code
+        obj.params = params
+        return obj
+
+    def text(self, lang: str = "en") -> str:
+        template = _TEXT[self.code].get(lang, _TEXT[self.code]["en"])
+        return template.format(**self.params)
+
+    def to_dict(self) -> dict:
+        return {"code": self.code, "params": {k: v for k, v in self.params.items()},
+                "text": self.text("en"), "text_de": self.text("de")}

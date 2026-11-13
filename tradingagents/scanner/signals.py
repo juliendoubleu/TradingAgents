@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 
 from tradingagents.scanner import indicators as ind
+from tradingagents.scanner.notices import Notice
 
 MIN_BARS = 220
 
@@ -45,8 +46,50 @@ VOL_FLOOR = 0.01             # annualised; keeps momentum finite on an almost fl
 RS_SCALE = 0.10              # a 10-point 3-month edge over the benchmark saturates tanh at ~0.76
 
 
+@dataclass(frozen=True)
+class SignalParams:
+    """Bar counts that depend on the market's calendar; the defaults are the stock market's.
+
+    Stocks trade ~21 days a month and ~252 a year; crypto trades every day (30 / 365).
+    Every window that the text calls a month, 3 months or a year derives from these, so
+    "3-month return" means three calendar months for a coin too. SMA50/200, RSI14, ATR14
+    and MACD stay in bars: they are conventions on bars, not on calendar time.
+    """
+
+    month_bars: int = 21
+    bars_per_year: int = 252
+
+    @property
+    def ret_1m(self) -> int:
+        return self.month_bars
+
+    @property
+    def ret_3m(self) -> int:
+        return 3 * self.month_bars
+
+    @property
+    def ret_6m(self) -> int:
+        return 6 * self.month_bars
+
+    @property
+    def vol_window(self) -> int:
+        return 3 * self.month_bars
+
+    @property
+    def horizon_bars(self) -> int:
+        return self.month_bars
+
+    @property
+    def min_bars(self) -> int:
+        return max(MIN_BARS, 6 * self.month_bars + 20)
+
+
 class SkipSignal(Exception):
-    """The instrument cannot be scored; the message is the reason shown to the user."""
+    """The instrument cannot be scored; ``notice`` is the translatable reason, ``str`` its English text."""
+
+    def __init__(self, code: str, **params):
+        self.notice = Notice(code, **params)
+        super().__init__(str(self.notice))
 
 
 @dataclass
@@ -168,7 +211,7 @@ def conviction_for(score: float) -> str:
 
 def _clean(df: pd.DataFrame) -> pd.DataFrame:
     if df is None or "Close" not in df.columns:
-        raise SkipSignal("no price data")
+        raise SkipSignal("no_price_data")
     frame = df.copy()
     frame = frame[frame["Close"].notna()]
     frame = frame[frame["Close"] > 0]
@@ -186,6 +229,7 @@ def compute_signal(
     benchmark_close: pd.Series | None = None,
     regime: str = "neutral",
     benchmark: str = "SPY",
+    params: SignalParams = SignalParams(),
 ) -> Signal:
     """Score ``df`` (daily bars, ascending, already cut at the decision date).
 
@@ -195,33 +239,34 @@ def compute_signal(
     ``SkipSignal`` with the reason when the instrument cannot be scored.
     """
     frame = _clean(df)
-    if len(frame) < MIN_BARS:
-        raise SkipSignal(f"only {len(frame)} bars of history, need {MIN_BARS}")
+    if len(frame) < params.min_bars:
+        raise SkipSignal("short_history", n=len(frame), need=params.min_bars)
     close, high, low, volume = frame["Close"], frame["High"], frame["Low"], frame["Volume"]
     last_ts = frame.index[-1]
     last_close = float(close.iloc[-1])
     if not np.isfinite(last_close) or last_close <= 0:
-        raise SkipSignal("no valid last close")
+        raise SkipSignal("no_last_close")
 
     sma50, sma200 = ind.sma(close, 50), ind.sma(close, 200)
-    ret21, ret63, ret126 = (_last(ind.pct_return(close, n)) for n in (21, 63, 126))
-    vol = _last(ind.realized_vol(close, 63))
+    ret21, ret63, ret126 = (
+        _last(ind.pct_return(close, n)) for n in (params.ret_1m, params.ret_3m, params.ret_6m))
+    vol = _last(ind.realized_vol(close, params.vol_window, params.bars_per_year))
     vol = max(vol, VOL_FLOOR) if vol is not None else None
     rsi_now = _last(ind.rsi(close, 14))
     atr_now = _last(ind.atr(high, low, close, 14))
     hist = ind.macd_hist(close)
     hist_now, hist_prev = _last(hist), _last(hist, 5)
     vratio = _last(ind.volume_ratio(volume))
-    d_high = _last(ind.dist_from_high(close))
-    d_low = _last(ind.dist_from_low(close))
+    d_high = _last(ind.dist_from_high(close, params.bars_per_year))
+    d_low = _last(ind.dist_from_low(close, params.bars_per_year))
     s50, s200, s50_prev = _last(sma50), _last(sma200), _last(sma50, 20)
 
     # Benchmark 3-month return as of this instrument's last bar (no later bar enters).
     bench_ret63 = None
     if benchmark_close is not None and symbol != benchmark:
         bclose = benchmark_close[benchmark_close.index <= last_ts].dropna()
-        if len(bclose) >= 64:
-            bench_ret63 = _last(ind.pct_return(bclose, 63))
+        if len(bclose) >= params.ret_3m + 1:
+            bench_ret63 = _last(ind.pct_return(bclose, params.ret_3m))
 
     # --- components, each in [-1, +1] ---
     trend = float(np.mean([
@@ -234,9 +279,9 @@ def compute_signal(
     def mom_term(ret, bars):
         if ret is None or vol is None:
             return 0.0
-        return _tanh(ret / (vol * math.sqrt(bars / ind.TRADING_DAYS)))
+        return _tanh(ret / (vol * math.sqrt(bars / params.bars_per_year)))
 
-    momentum = (mom_term(ret126, 126) + mom_term(ret63, 63)) / 2
+    momentum = (mom_term(ret126, params.ret_6m) + mom_term(ret63, params.ret_3m)) / 2
 
     if ret63 is not None and bench_ret63 is not None:
         rel = _tanh((ret63 - bench_ret63) / RS_SCALE)
@@ -273,7 +318,7 @@ def compute_signal(
     signal = Signal(
         symbol=symbol, direction=direction, score=score, conviction=conviction_for(score),
         components=components, close=last_close, last_date=last_ts.strftime("%Y-%m-%d"),
-        regime=regime, atr=atr_now, rsi=rsi_now,
+        regime=regime, atr=atr_now, rsi=rsi_now, horizon_bars=params.horizon_bars,
         metrics={"sma50": s50, "sma200": s200, "ret21": ret21, "ret63": ret63, "ret126": ret126,
                  "vol": vol, "volume_ratio": vratio, "dist_high": d_high, "dist_low": d_low,
                  "bench_ret63": bench_ret63, "macd_hist": hist_now},

@@ -44,6 +44,11 @@ _TEXT = {
         "de": "VIX bei {v:.1f}",
     },
 }
+_VIX_UNUSED = {
+    "en": "VIX not used for this universe (it measures US stock-market fear): no points",
+    "de": "VIX wird für dieses Universum nicht verwendet (er misst US-Aktienmarkt-Angst): "
+          "keine Punkte",
+}
 LABELS = {
     "risk-on": {"en": "Risk-on", "de": "Risk-on"},
     "neutral": {"en": "Neutral", "de": "Neutral"},
@@ -65,6 +70,7 @@ class MarketRegime:
     benchmark: str
     facts: list[RegimeFact] = field(default_factory=list)
     missing: list[str] = field(default_factory=list)   # inputs that were not available
+    vix_used: bool = True       # False for universes the US VIX does not describe
 
     def describe(self, lang: str = "en") -> list[str]:
         """Each fact as a sentence with its points, e.g. ``... (+1)``."""
@@ -72,14 +78,14 @@ class MarketRegime:
             _TEXT[f.key].get(lang, _TEXT[f.key]["en"]).format(v=f.value, bench=self.benchmark)
             + f" ({f.points:+d})"
             for f in self.facts
-        ]
+        ] + ([] if self.vix_used else [_VIX_UNUSED.get(lang, _VIX_UNUSED["en"])])
 
     def to_dict(self) -> dict:
         return {
             "label": self.label, "points": self.points, "benchmark": self.benchmark,
             "facts": [{"key": f.key, "value": round(f.value, 4), "points": f.points}
                       for f in self.facts],
-            "missing": list(self.missing),
+            "missing": list(self.missing), "vix_used": self.vix_used,
         }
 
 
@@ -115,11 +121,13 @@ def compute_regime(
     benchmark_close: pd.Series | None,
     breadth: float | None = None,
     vix_close: pd.Series | None = None,
+    use_vix: bool = True,
 ) -> MarketRegime:
     """Score the backdrop from bars that are already cut at the decision date.
 
     Inputs that are missing or too short simply contribute no points and are listed
-    in ``missing``, so a thin data day cannot fabricate a verdict.
+    in ``missing``, so a thin data day cannot fabricate a verdict. ``use_vix=False``
+    (DAX, crypto) ignores the VIX entirely; the risk-on/off boundaries stay as they are.
     """
     facts: list[RegimeFact] = []
     missing: list[str] = []
@@ -150,14 +158,15 @@ def compute_regime(
         pts = 1 if breadth > BREADTH_STRONG else (-1 if breadth < BREADTH_WEAK else 0)
         facts.append(RegimeFact("breadth", breadth * 100, pts))
 
-    vix = None
-    if vix_close is not None and len(vix_close):
-        vix = float(vix_close.iloc[-1])
-    if vix is None or not np.isfinite(vix):
-        missing.append("VIX")
-    else:
-        pts = 1 if vix < VIX_CALM else (-1 if vix > VIX_STRESS else 0)
-        facts.append(RegimeFact("vix", vix, pts))
+    if use_vix:
+        vix = None
+        if vix_close is not None and len(vix_close):
+            vix = float(vix_close.iloc[-1])
+        if vix is None or not np.isfinite(vix):
+            missing.append("VIX")
+        else:
+            pts = 1 if vix < VIX_CALM else (-1 if vix > VIX_STRESS else 0)
+            facts.append(RegimeFact("vix", vix, pts))
 
     points = sum(f.points for f in facts)
-    return MarketRegime(classify(points), points, benchmark, facts, missing)
+    return MarketRegime(classify(points), points, benchmark, facts, missing, vix_used=use_vix)
