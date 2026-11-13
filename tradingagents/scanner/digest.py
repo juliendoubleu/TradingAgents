@@ -1,0 +1,281 @@
+"""The phone digest: what a scheduled scan pushes as a notification or message.
+
+A headline that stands alone as a push notification and a plain-text body (no Markdown,
+no tables) that reads on a phone. Honesty rules, same as the report: only ideas whose rule
+has measured evidence are listed as recommendations; where there is none the digest says
+so in one line and why; the composite's strong/weak names appear only as a short "watch,
+not proven" line, which is the first thing dropped when the body gets too long.
+
+The text is deterministic for a given input and ``now``. German is the default because the
+digest is read by a German-speaking user; English exists for completeness.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Iterable
+from dataclasses import dataclass
+from datetime import datetime
+
+from tradingagents.scanner.fmt import fmt_date, fmt_num, fmt_price
+from tradingagents.scanner.horizons import holding_text
+from tradingagents.scanner.regime import LABELS as REGIME_LABELS
+from tradingagents.scanner.report import (
+    SIDES,
+    HorizonView,
+    composite_conflicts,
+    horizon_label,
+    horizon_views,
+    label_text,
+    market_name,
+    short_reason,
+)
+from tradingagents.scanner.scan import ScanResult
+
+HEADLINE_MAX = 180
+BODY_MAX = 2400
+
+_WEEKDAY = {
+    "de": ("Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"),
+    "en": ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"),
+}
+
+_X = {
+    "title_prices": ("prices up to", "Kurse bis"),
+    "prices": ("prices", "Kurse"),
+    "entry": ("Entry", "Einstieg"),
+    "ref": ("ref.", "Ref."),
+    "stop": ("Stop", "Stop"),
+    "max": ("max.", "max."),
+    "more": ("(+{n} more in the report)", "(+{n} weitere im Bericht)"),
+    "no_rec": ("no recommendation", "keine Empfehlung"),
+    "ideas_missing": ("ideas unavailable, no recommendation",
+                      "Ideen nicht verfügbar, keine Empfehlung"),
+    "watch": ("Watch (not proven)", "Beobachten (nicht belegt)"),
+    "strong": ("strong", "stark"), "weak": ("weak", "schwach"),
+    "avoid": ("Avoid / underweight (relative evidence)", "Meiden / untergewichten (relativ belegt)"),
+    "weak_now": ("currently technically weak", "aktuell technisch schwach"),
+    "strong_now": ("currently technically strong", "aktuell technisch stark"),
+    "foot_labels": (
+        "Validated = passed an out-of-sample test; Watch = technical picture only, no proven "
+        "edge. Sizes are per trade and do not add up.",
+        "Belegt = in einem Test außerhalb der Stichprobe bestanden; Beobachten = nur "
+        "technisches Bild, kein belegter Vorteil. Größen gelten je Trade und addieren sich "
+        "nicht."),
+    "foot_advice": ("Not investment advice.", "Keine Anlageberatung."),
+    "no_scan": ("No scan result", "Kein Scan-Ergebnis"),
+    "none_proven": ("No evidenced recommendation", "Keine belegte Empfehlung"),
+    "proven": ("Evidenced", "Belegt"),
+    "watch_only": ("watch only", "nur Beobachtung"),
+}
+
+
+def _x(key: str, lang: str):
+    return _X[key][1 if lang == "de" else 0]
+
+
+@dataclass(frozen=True)
+class Digest:
+    """``headline``: one line, at most 180 characters. ``body``: plain text, at most 2,400."""
+
+    headline: str
+    body: str
+
+    @property
+    def text(self) -> str:
+        """Headline, a blank line, the body: what a script can send as one message."""
+        return f"{self.headline}\n\n{self.body}"
+
+
+# --- the pieces ---------------------------------------------------------------------------------
+
+
+def _side_word(direction: str) -> str:
+    return direction.upper()
+
+
+def _idea_line(idea, lang: str, conflict: str | None) -> str:
+    entry = idea.entry.get(lang) or idea.entry.get("en", "")
+    parts = [
+        f"{_side_word(idea.direction)} {idea.symbol}",
+        f"{_x('entry', lang)} {_short_entry(entry, lang)} "
+        f"({_x('ref', lang)} {fmt_price(idea.reference_price, lang)})",
+    ]
+    if idea.stop is not None:
+        parts.append(f"{_x('stop', lang)} {fmt_price(idea.stop, lang)}")
+    if idea.size_pct is not None:
+        parts.append(f"{_x('max', lang)} {fmt_num(idea.size_pct, 1, lang)} %")
+    parts.append(label_text(idea.evidence.label, lang))
+    if conflict:
+        parts.append(_x("weak_now" if conflict == "weak" else "strong_now", lang))
+    return " · ".join(parts)
+
+
+def _short_entry(entry: str, lang: str) -> str:
+    """'zur nächsten Eröffnung' -> 'nächste Eröffnung' (the plan's phone wording)."""
+    if lang == "de" and entry.startswith("zur "):
+        return "nächste Eröffnung" if entry == "zur nächsten Eröffnung" else entry[4:]
+    if lang != "de" and entry.startswith("at the "):
+        return entry[7:]
+    return entry
+
+
+def _why_text(notes, lang: str) -> str:
+    clause = short_reason(notes[0], lang) if notes else ""
+    return f"{_x('no_rec', lang)} – {clause}" if clause else _x("no_rec", lang)
+
+
+def _nothing_entries(view: HorizonView, lang: str) -> list[tuple[str, str]]:
+    """``(label, text)`` for each side without an evidenced idea; both sides with the same
+    reason collapse into the horizon alone."""
+    name = horizon_label(view.key, lang)
+    missing = [s for s in SIDES if not view.side(s)]
+    if not missing:
+        return []
+    texts = {s: _why_text(view.why[s], lang) for s in missing}
+    if len(missing) == 2 and texts["Long"] == texts["Short"]:
+        return [(name, texts["Long"])]
+    return [(f"{name} {s}", texts[s]) for s in missing]
+
+
+def _avoid_symbols(result: ScanResult, horizons) -> list[str]:
+    if result.ideas is None:
+        return []
+    keys = {v.key for v in horizon_views(result, horizons)}
+    return list(dict.fromkeys(i.symbol for i in result.ideas.ideas
+                              if i.stance == "avoid" and i.horizon in keys))
+
+
+def _market_lines(result: ScanResult, lang: str, max_per_side: int, watch: bool,
+                  newest: str, horizons) -> list[str]:
+    head = f"{market_name(result, lang)} · {REGIME_LABELS[result.regime.label][lang]}"
+    if result.as_of_date and result.as_of_date != newest:
+        head += f" ({_x('prices', lang)} {fmt_date(result.as_of_date, lang)})"
+    lines = [head]
+    if result.ideas is None:
+        lines.append(_x("ideas_missing", lang))
+    else:
+        conflicts = composite_conflicts(result)
+        merged: dict[str, list[str]] = {}
+        for view in horizon_views(result, horizons):
+            if view.recs:
+                lines.append(f"{holding_text(view.key, result.ideas.family, lang)}:")
+                for side in SIDES:
+                    ideas = view.side(side)
+                    lines += [_idea_line(i, lang, conflicts.get(i.symbol))
+                              for i in ideas[:max_per_side]]
+                    if len(ideas) > max_per_side:
+                        lines.append(_x("more", lang).format(n=len(ideas) - max_per_side))
+            for label, text in _nothing_entries(view, lang):
+                merged.setdefault(text, []).append(label)
+        lines += [f"{', '.join(labels)}: {text}" for text, labels in merged.items()]
+    if watch:
+        parts = []
+        strong = [s.symbol for s in result.longs[:max_per_side]]
+        weak = [s.symbol for s in result.shorts[:max_per_side]]
+        if strong:
+            parts.append(f"{_x('strong', lang)} {', '.join(strong)}")
+        if weak:
+            parts.append(f"{_x('weak', lang)} {', '.join(weak)}")
+        if parts:
+            lines.append(f"{_x('watch', lang)}: {' · '.join(parts)}")
+        avoid = _avoid_symbols(result, horizons)[:max_per_side]
+        if avoid:
+            lines.append(f"{_x('avoid', lang)}: {', '.join(avoid)}")
+    return lines
+
+
+def _title(results: list[ScanResult], lang: str, now: datetime, newest: str) -> str:
+    weekday = _WEEKDAY[lang][now.weekday()]
+    stamp = f"{weekday} {fmt_date(now.date(), lang)} {now.strftime('%H:%M')}"
+    if newest:
+        stamp += f" · {_x('title_prices', lang)} {fmt_date(newest, lang)}"
+    return stamp
+
+
+def _body(results: list[ScanResult], lang: str, max_per_side: int, watch: bool, now: datetime,
+          horizons) -> str:
+    newest = max((r.as_of_date for r in results if r.as_of_date), default="")
+    blocks = [_title(results, lang, now, newest)]
+    for result in results:
+        blocks.append("\n".join(_market_lines(result, lang, max_per_side, watch, newest,
+                                              horizons)))
+    blocks.append(f"{_x('foot_labels', lang)} {_x('foot_advice', lang)}")
+    return "\n\n".join(blocks)
+
+
+def _evidenced_groups(results: list[ScanResult], lang: str, horizons) -> list[tuple[str, list[str]]]:
+    """``("US Langfristig Long", [tickers])`` for every horizon and side with evidenced ideas."""
+    groups = []
+    for result in results:
+        for view in horizon_views(result, horizons):
+            for side in SIDES:
+                ideas = view.side(side)
+                if ideas:
+                    groups.append((f"{market_name(result, lang)} {horizon_label(view.key, lang)} "
+                                   f"{side}", [i.symbol for i in ideas]))
+    return groups
+
+
+def _headline(results: list[ScanResult], lang: str, horizons) -> str:
+    if not results:
+        return _x("no_scan", lang)
+    regimes = ", ".join(f"{market_name(r, lang)} {REGIME_LABELS[r.regime.label][lang]}"
+                        for r in results)
+    groups = _evidenced_groups(results, lang, horizons)
+
+    def names(symbols: list[str], limit: int) -> str:
+        text = ", ".join(symbols[:limit])
+        return text + (f" +{len(symbols) - limit}" if len(symbols) > limit else "")
+
+    candidates = []
+    if groups:
+        for limit in (3, 2, 1):
+            shown = "; ".join(f"{label}: {names(syms, limit)}" for label, syms in groups)
+            candidates.append(f"{_x('proven', lang)}: {shown} · {regimes}")
+        candidates.append(f"{_x('proven', lang)}: {groups[0][0]}: {names(groups[0][1], 2)}"
+                          + (f" (+{len(groups) - 1})" if len(groups) > 1 else ""))
+    else:
+        for limit in (2, 1):
+            watch = "; ".join(
+                f"{market_name(r, lang)} {', '.join(s.symbol for s in r.longs[:limit])}"
+                for r in results if r.longs)
+            tail = f" · {_x('watch_only', lang).capitalize()}: {watch}" if watch else ""
+            candidates.append(f"{_x('none_proven', lang)}{tail} · {regimes}")
+            candidates.append(f"{_x('none_proven', lang)}{tail}")
+        candidates.append(_x("none_proven", lang))
+    for text in candidates:
+        if len(text) <= HEADLINE_MAX:
+            return text
+    return candidates[-1][: HEADLINE_MAX - 1].rstrip() + "…"
+
+
+def build_digest(
+    results: list[ScanResult],
+    lang: str = "de",
+    max_per_side: int = 3,
+    now: datetime | None = None,
+    horizons: Iterable[str] | None = None,
+) -> Digest:
+    """Headline and body for ``results`` (one per market).
+
+    ``now`` is the clock shown in the title (default: the current local time), so the same
+    input and ``now`` always give the same text. The body stays within ``BODY_MAX``
+    characters: first the watch lines go, then the number of ideas per side shrinks to one,
+    and only as a last resort the text is cut. ``horizons`` filters like ``scan --horizon``.
+    """
+    lang = "de" if lang == "de" else "en"
+    now = now or datetime.now()
+    horizons = tuple(horizons) if horizons else None
+    body = ""
+    attempts = [(max_per_side, True), (max_per_side, False)]
+    attempts += [(n, False) for n in range(max_per_side - 1, 0, -1)]
+    for count, watch in attempts:
+        body = _body(results, lang, max(1, count), watch, now, horizons)
+        if len(body) <= BODY_MAX:
+            break
+    else:
+        cut = body[: BODY_MAX - 1]
+        body = cut[: cut.rfind("\n")] if "\n" in cut else cut
+        body = body.rstrip() + "\n…"
+    body = "\n".join(line.rstrip() for line in body.split("\n"))
+    return Digest(_headline(results, lang, horizons), body)

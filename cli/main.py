@@ -156,148 +156,371 @@ def backtest(
         console.print(f"[yellow]unsettled:[/yellow] {ticker}: {reason}")
 
 
+_CLI = {
+    "status_scan": ("Downloading prices and scanning...", "Lade Kurse und scanne ..."),
+    "status_validate": ("Validating the signals over {months} months...",
+                        "Prüfe die Signale über {months} Monate ..."),
+    "no_vendor": ("Could not get price data: {err}", "Kursdaten konnten nicht geladen werden: {err}"),
+    "failed": ("{market} failed: {err}", "{market} fehlgeschlagen: {err}"),
+    "failed_digest": ("Not loaded: {markets}.", "Nicht geladen: {markets}."),
+    "all_failed": ("No market could be scanned.", "Kein Markt konnte gescannt werden."),
+    "data_as_of": ("data as of", "Datenstand"),
+    "regime": ("Market regime", "Marktregime"),
+    "val_title": ("Walk-forward validation of the technical picture",
+                  "Walk-forward-Validierung des technischen Bildes"),
+    "verdict": ("Verdict", "Urteil"),
+    "val_head": ("{n} rebalances, {first} - {last}, {h}d",
+                 "{n} Termine, {first} - {last}, {h} Tage"),
+    "per_date": ("per date", "je Termin"), "pooled": ("pooled", "gepoolt"),
+    "spread": ("Long - Short spread", "Long-minus-Short-Spread"),
+    "dates": ("{n} dates", "{n} Termine"),
+    "agents": ("Running the LLM agents on {n} ideas: {names} ...",
+               "Starte die LLM-Agenten für {n} Ideen: {names} ..."),
+    "agent_failed": ("{sym} failed: {err}", "{sym} fehlgeschlagen: {err}"),
+    "saved": ("Saved:", "Gespeichert:"),
+    "disclaimer": (
+        "Research tool, not investment advice. Sizes are per trade and do not add up. "
+        "Shorts can lose more than the stake.",
+        "Recherchewerkzeug, keine Anlageberatung. Größen gelten je Trade und addieren sich nicht. "
+        "Shorts können mehr als den Einsatz kosten."),
+    "err_horizon": ("unknown horizon {h!r}; choose from: {valid}",
+                    "unbekannter Horizont {h!r}; wähle aus: {valid}"),
+    "err_universe": ("unknown universe {u!r}; choose one of: {valid}",
+                     "unbekanntes Universum {u!r}; wähle aus: {valid}"),
+    "err_tickers_multi": ("--tickers works with one universe only",
+                          "--tickers geht nur mit einem Universum"),
+    "err_numbers": ("--top and --months must be at least 1, and --deep at least 0",
+                    "--top und --months müssen mindestens 1 sein, --deep mindestens 0"),
+    "err_no_ticker": ("no ticker given; pass them comma-separated, e.g. AAPL,MSFT",
+                      "kein Ticker angegeben; kommagetrennt übergeben, z. B. AAPL,MSFT"),
+    "err_lang": ("--lang must be en or de", "--lang muss en oder de sein"),
+}
+
+
+def _c(key: str, lang: str, **kw) -> str:
+    text = _CLI[key][1 if lang == "de" else 0]
+    return text.format(**kw) if kw else text
+
+
+def _print_recommendations(result, lang: str, horizons) -> None:
+    """The per-horizon recommendation tables, or the plain reason there is none."""
+    from rich.markup import escape
+    from rich.table import Table
+
+    from tradingagents.scanner.fmt import fmt_date, fmt_num, fmt_price
+    from tradingagents.scanner.horizons import holding_text
+    from tradingagents.scanner.report import (
+        SIDES,
+        composite_conflicts,
+        horizon_views,
+        sizing_note,
+        tr,
+    )
+
+    if result.ideas is None:
+        console.print(f"\n[yellow]{tr('ideas_missing', lang)}[/yellow]")
+        return
+    views = horizon_views(result, horizons)
+    conflicts = composite_conflicts(result)
+    console.print(f"\n[bold]{tr('recs', lang)}[/bold]")
+    if not any(v.recs for v in views):
+        console.print(f"[bold yellow]{tr('no_rec_any', lang)}[/bold yellow]")
+    for view in views:
+        console.print(f"\n[bold]{escape(holding_text(view.key, result.ideas.family, lang))}[/bold]")
+        if view.recs:
+            table = Table()
+            for col in ("dir", "ticker", "ref", "stop", "size"):
+                table.add_column(tr(col, lang), no_wrap=True)
+            for i in view.recs:
+                colour = "green" if i.direction == "Long" else "red"
+                table.add_row(
+                    f"[{colour}]{i.direction}[/{colour}]", escape(i.symbol),
+                    f"{fmt_price(i.reference_price, lang)} ({fmt_date(i.reference_date, lang)})",
+                    fmt_price(i.stop, lang),
+                    "-" if i.size_pct is None else f"{fmt_num(i.size_pct, 1, lang)} %")
+            console.print(table)
+            shown = list(dict.fromkeys(
+                (i.direction, i.evidence.text(lang)) for i in view.recs))
+            for direction, sentence in shown:
+                console.print(f"  {direction}: {escape(sentence)}", soft_wrap=True)
+            for i in view.recs:
+                flag = conflicts.get(i.symbol)
+                if flag:
+                    console.print(f"  [yellow]{escape(i.symbol)}: "
+                                  f"{tr('tech_weak_now' if flag == 'weak' else 'tech_strong_now', lang)}"
+                                  "[/yellow]", soft_wrap=True)
+        why = []
+        for side in SIDES:
+            if not view.side(side):
+                why += [n.text(lang) for n in view.why[side] if n.text(lang) not in why]
+        if not view.recs and not why:
+            why = [tr("no_rec", lang)]
+        for line in why:
+            console.print(f"  [yellow]{escape(line)}[/yellow]", soft_wrap=True)
+    console.print(f"\n[dim]{escape(sizing_note(lang))}[/dim]", soft_wrap=True)
+
+
+def _print_watch(result, lang: str, horizons) -> None:
+    """The watch list: explicitly not a recommendation; the composite names appear once."""
+    from rich.markup import escape
+
+    from tradingagents.scanner.fmt import fmt_num
+    from tradingagents.scanner.horizons import holding_text
+    from tradingagents.scanner.report import _specific_watch, horizon_keys, localize_text, tr
+
+    keys = horizon_keys(horizons)
+    console.print(f"\n[bold]{tr('watch', lang)}[/bold]")
+    console.print(f"[dim]{escape(tr('watch_intro', lang))}[/dim]", soft_wrap=True)
+    family = result.ideas.family if result.ideas is not None else ""
+    groups: dict[tuple, list[str]] = {}
+    for idea in _specific_watch(result, keys):
+        avoid = idea.stance == "avoid"
+        key = (idea.horizon, tr("avoid", lang) if avoid else idea.direction,
+               idea.evidence.text(lang))
+        groups.setdefault(key, []).append(idea.symbol)
+    for (horizon, side, sentence), symbols in groups.items():
+        console.print(f"  [bold]{escape(holding_text(horizon, family, lang).split(' – ')[0])} "
+                      f"{escape(side)}[/bold]: {escape(', '.join(symbols))}", soft_wrap=True)
+        console.print(f"    {escape(sentence)}", soft_wrap=True)
+    for title, signals, colour in ((tr("strong", lang), result.longs, "green"),
+                                   (tr("weak", lang), result.shorts, "red")):
+        console.print(f"\n[{colour}]{title}[/{colour}]")
+        if not signals:
+            console.print("  -")
+        for s in signals:
+            sign = "+" if s.score > 0 else ""
+            reasons = "; ".join(localize_text(r, lang) for r in s.reasons_text(lang))
+            console.print(f"  [bold]{escape(s.symbol)}[/bold] ({sign}{fmt_num(s.score, 1, lang)}): "
+                          f"{escape(reasons)}", soft_wrap=True)
+
+
+def _print_solid(result, lang: str, horizons) -> None:
+    from rich.markup import escape
+    from rich.table import Table
+
+    from tradingagents.scanner.report import (
+        evidence_cells,
+        horizon_keys,
+        horizon_label,
+        label_text,
+        solid_paragraph,
+        tr,
+    )
+
+    console.print(f"\n[bold]{tr('solid', lang)}[/bold]")
+    keys = horizon_keys(horizons)
+    if result.ideas is not None and result.ideas.evidence_available:
+        table = Table()
+        for col in ("area", "dir", "label"):
+            table.add_column(tr(col, lang), no_wrap=True)
+        for c in evidence_cells(result, keys):
+            table.add_row(horizon_label(c["horizon"], lang), c["side"], label_text(c["label"], lang))
+        console.print(table)
+    console.print(escape(solid_paragraph(result, lang, keys)), soft_wrap=True)
+
+
+def _print_validation(validation, lang: str) -> None:
+    from rich.markup import escape
+    from rich.table import Table
+
+    from tradingagents.scanner.fmt import fmt_date, fmt_num, fmt_pct
+    from tradingagents.scanner.report import tr, validation_verdict
+    from tradingagents.scanner.validation import CAVEATS
+
+    console.print(f"\n[bold]{_c('val_title', lang)}[/bold]")
+    console.print(f"[bold]{_c('verdict', lang)}:[/bold] {escape(validation_verdict(validation, lang))}",
+                  soft_wrap=True)
+    if validation.rebalances:
+        console.print(_c("val_head", lang, n=validation.rebalances,
+                         first=fmt_date(validation.first_rebalance, lang),
+                         last=fmt_date(validation.last_rebalance, lang), h=validation.horizon))
+        vt = Table()
+        for col in ("direction", "calls", "avg_ret", "avg_exc", "hit", "pnl"):
+            vt.add_column(tr(col, lang))
+        for name in ("Long", "Short", "Neutral"):
+            st = validation.stats[name]
+            vt.add_row(name, str(st.calls), fmt_pct(st.avg_return, 2, True, lang),
+                       fmt_pct(st.avg_excess, 2, True, lang), fmt_pct(st.hit_rate, 0, False, lang),
+                       fmt_pct(st.avg_pnl, 2, True, lang))
+        console.print(vt)
+        t = (f" (t={fmt_num(validation.spread_tstat, 2, lang)}, "
+             f"{_c('dates', lang, n=validation.spread_dates)})"
+             if validation.spread_tstat is not None else "")
+        console.print(f"{_c('spread', lang)} ({_c('per_date', lang)}): "
+                      f"{fmt_pct(validation.spread, 2, True, lang)}{t}")
+        console.print(f"{_c('spread', lang)} ({_c('pooled', lang)}): "
+                      f"{fmt_pct(validation.spread_pooled, 2, True, lang)}")
+    console.print(f"[dim]{tr('caveats', lang)}:[/dim]")
+    for caveat in CAVEATS[lang]:
+        console.print(f"[dim]- {escape(caveat)}[/dim]", soft_wrap=True)
+
+
 @app.command()
 def scan(
-    universe: str = typer.Option("us", "--universe", help="us, sectors, global, dax, crypto or all"),
+    universe: str = typer.Option(
+        "us", "--universe",
+        help="us, sectors, global, dax, crypto or all; several comma-separated, e.g. us,dax,crypto"),
     tickers: str = typer.Option(
         None, "--tickers", help="Comma-separated tickers that replace the universe's members"
     ),
     date: str = typer.Option(None, "--date", help="Scan date, YYYY-MM-DD (default: today)"),
-    top: int = typer.Option(10, "--top", help="How many Long and Short ideas to list"),
+    top: int = typer.Option(10, "--top", help="How many ideas per list to show"),
+    horizon: str = typer.Option(
+        None, "--horizon",
+        help="Only these investment horizons, comma-separated: day, swing, medium, long (default: all)"),
+    digest: bool = typer.Option(
+        False, "--digest/--no-digest",
+        help="Print only the short phone digest (headline, blank line, body) as plain text"),
     validate: bool = typer.Option(
         False, "--validate/--no-validate",
-        help="Also check the signals walk-forward against what happened next",
+        help="Also check the technical picture walk-forward against what happened next",
     ),
     months: int = typer.Option(24, "--months", help="History the validation covers, in months"),
     deep: int = typer.Option(
-        0, "--deep", help="Run the LLM agents on the N best Long and Short ideas (needs an LLM key)"
+        0, "--deep", help="Run the LLM agents on the N best technical Long and Short names (needs an LLM key)"
     ),
-    save: bool = typer.Option(True, "--save/--no-save", help="Write scan.md, scan.html, scan.json"),
+    save: bool = typer.Option(True, "--save/--no-save",
+                              help="Write scan.md, scan.html, scan.json, digest.txt"),
     lang: str = typer.Option(None, "--lang", help="Report language, en or de"),
     output: str = typer.Option(None, "--output", help="Directory to save under (default: results_dir)"),
 ):
-    """Scan a market for Long and Short ideas, with no LLM needed.
+    """Scan markets and show ideas by investment horizon, with no LLM needed.
 
-    Ranks every instrument by a rule-based score (trend, momentum, relative strength,
-    MACD, RSI, volume), reads the market regime, and gives each idea an entry, stop
-    and target. A research tool, not financial advice.
+    Recommendations appear only where a rule passed a measured out-of-sample test; the
+    scanner's technical picture (trend, momentum, relative strength, MACD, RSI, volume)
+    is shown as a watch list because it has no measured edge. A research tool, not
+    investment advice.
     """
-    from rich.table import Table
+    from rich.markup import escape
 
     from tradingagents.dataflows.errors import VendorError
     from tradingagents.scanner.deep_dive import check_llm_credentials, deep_dive
+    from tradingagents.scanner.digest import build_digest
+    from tradingagents.scanner.fmt import fmt_date
     from tradingagents.scanner.regime import LABELS as REGIME_LABELS
-    from tradingagents.scanner.report import format_price, save_scan
+    from tradingagents.scanner.report import (
+        HORIZON_ORDER,
+        localize_text,
+        save_scan,
+        universe_description,
+    )
     from tradingagents.scanner.scan import parse_date, run_scan
-    from tradingagents.scanner.validation import CAVEATS, validate as run_validation
+    from tradingagents.scanner.universe import universe_names
+    from tradingagents.scanner.validation import validate as run_validation
 
+    if lang is None:
+        language = str(DEFAULT_CONFIG.get("output_language", "English")).strip().lower()
+        lang_ok = "de" if language in ("german", "deutsch", "de") else "en"
+    else:
+        lang_ok = lang
+    msg_lang = lang_ok if lang_ok in ("en", "de") else "en"
     names = [t.strip() for t in tickers.split(",") if t.strip()] if tickers else None
+    wanted = list(dict.fromkeys(u.strip().lower() for u in universe.split(",") if u.strip()))
     try:
         as_of = parse_date(date)
         if tickers is not None and not names:
-            raise ValueError("no ticker given; pass them comma-separated, e.g. AAPL,MSFT")
+            raise ValueError(_c("err_no_ticker", msg_lang))
         if top < 1 or months < 1 or deep < 0:
-            raise ValueError("--top and --months must be at least 1, and --deep at least 0")
-        if lang is None:
-            language = str(DEFAULT_CONFIG.get("output_language", "English")).strip().lower()
-            lang = "de" if language in ("german", "deutsch", "de") else "en"
-        if lang not in ("en", "de"):
-            raise ValueError("--lang must be en or de")
+            raise ValueError(_c("err_numbers", msg_lang))
+        if lang_ok not in ("en", "de"):
+            raise ValueError(_c("err_lang", "en"))
+        lang = lang_ok
+        for u in wanted or ["us"]:
+            if u not in universe_names():
+                raise ValueError(_c("err_universe", lang, u=u, valid=", ".join(universe_names())))
+        wanted = wanted or ["us"]
+        if names and len(wanted) > 1:
+            raise ValueError(_c("err_tickers_multi", lang))
+        horizons = None
+        if horizon:
+            horizons = list(dict.fromkeys(h.strip().lower() for h in horizon.split(",") if h.strip()))
+            for h in horizons:
+                if h not in HORIZON_ORDER:
+                    raise ValueError(_c("err_horizon", lang, h=h, valid=", ".join(HORIZON_ORDER[::-1])))
         if deep:
             check_llm_credentials(DEFAULT_CONFIG)
     except (ValueError, RuntimeError) as exc:
-        console.print(f"[red]{exc}[/red]")
+        console.print(f"[red]{escape(str(exc))}[/red]")
         raise typer.Exit(code=1) from None
 
-    try:
-        with console.status("Downloading prices and scanning..."):
-            result = run_scan(universe, as_of, tickers=names, top=top)
-        validation = None
-        if validate:
-            with console.status(f"Validating the signals over {months} months..."):
-                validation = run_validation(universe, as_of, tickers=names, months=months)
-    except ValueError as exc:  # an unknown universe
-        console.print(f"[red]{exc}[/red]")
-        raise typer.Exit(code=1) from None
-    except VendorError as exc:
-        console.print(f"[red]Could not get price data: {exc}[/red]")
-        raise typer.Exit(code=1) from None
+    results, failures = [], []
+    for name in wanted:
+        try:
+            if digest:
+                result = run_scan(name, as_of, tickers=names, top=top)
+                validation = (run_validation(name, as_of, tickers=names, months=months)
+                              if validate else None)
+            else:
+                with console.status(_c("status_scan", lang)):
+                    result = run_scan(name, as_of, tickers=names, top=top)
+                validation = None
+                if validate:
+                    with console.status(_c("status_validate", lang, months=months)):
+                        validation = run_validation(name, as_of, tickers=names, months=months)
+        except VendorError as exc:
+            failures.append((name, _c("no_vendor", lang, err=exc)))
+            continue
+        except Exception as exc:  # one broken market must not stop the others
+            failures.append((name, f"{type(exc).__name__}: {exc}"))
+            continue
+        results.append((result, validation))
 
-    de = lang == "de"
-    console.print(f"\n[bold]{result.description}[/bold] ({result.universe}), "
-                  f"{'Datenstand' if de else 'data as of'} {result.as_of_date or '-'}")
-    tone = {"risk-on": "green", "risk-off": "red", "neutral": "yellow"}[result.regime.label]
-    console.print(f"{'Marktregime' if de else 'Market regime'}: "
-                  f"[{tone}]{REGIME_LABELS[result.regime.label][lang]}[/{tone}] "
-                  f"({result.regime.points:+d})")
-    for line in result.regime.describe(lang):
-        console.print(f"  - {line}")
-    for warning in result.warnings:
-        console.print(f"[yellow]{warning.text(lang) if hasattr(warning, 'text') else warning}[/yellow]")
+    for name, err in failures:
+        if len(wanted) == 1:
+            typer.echo(err, err=True) if digest else console.print(f"[red]{err}[/red]", soft_wrap=True)
+        else:
+            line = _c("failed", lang, market=name, err=err)
+            typer.echo(line, err=True) if digest else console.print(f"[red]{line}[/red]", soft_wrap=True)
+    if not results:
+        if len(wanted) > 1:
+            typer.echo(_c("all_failed", lang), err=True)
+        raise typer.Exit(code=1)
 
-    def ideas_table(title: str, signals, colour: str) -> None:
-        if not signals:
-            console.print(f"\n[bold {colour}]{title}[/bold {colour}]: -")
-            return
-        table = Table(title=title, title_style=f"bold {colour}")
-        for col in ("#", "Ticker", "Score", "Conv.", "Close", "Stop", "Target", "Size %"):
-            table.add_column(col, no_wrap=True)
-        for i, s in enumerate(signals, 1):
-            table.add_row(str(i), s.symbol, f"{s.score:+.1f}", s.conviction, format_price(s.close),
-                          format_price(s.stop), format_price(s.target), f"{s.size_pct:.1f}")
-        console.print()
-        console.print(table)
-        for s in signals:
-            console.print(f"  [bold]{s.symbol}[/bold]: {'; '.join(s.reasons_text(lang))}")
-
-    ideas_table("Top Long" if not de else "Top Long-Ideen", result.longs, "green")
-    ideas_table("Top Short" if not de else "Top Short-Ideen", result.shorts, "red")
-
-    if validation is not None and validation.rebalances == 0:
-        console.print(f"\n[bold]{'Validierung' if de else 'Walk-forward validation'}[/bold]: "
-                      + ("0 Termine - zu wenig Historie fuer den gewaehlten Zeitraum, "
-                         "nichts zu zeigen." if de else
-                         "0 rebalances - not enough history for the requested window, "
-                         "nothing to show."))
-        console.print(f"[dim]{CAVEATS[lang][0]}[/dim]")
-    elif validation is not None:
-        console.print(f"\n[bold]{'Validierung' if de else 'Walk-forward validation'}[/bold]: "
-                      f"{validation.rebalances} {'Termine' if de else 'rebalances'}, "
-                      f"{validation.first_rebalance} - {validation.last_rebalance}, "
-                      f"{validation.horizon}d")
-        vt = Table()
-        for col in ("Call", "n", "Avg ret", "Avg excess", "Hit rate", "Avg P&L"):
-            vt.add_column(col)
-        pct = lambda x, d=2: "-" if x is None else f"{x * 100:+.{d}f} %"  # noqa: E731
-        for name in ("Long", "Short", "Neutral"):
-            st = validation.stats[name]
-            vt.add_row(name, str(st.calls), pct(st.avg_return), pct(st.avg_excess),
-                       "-" if st.hit_rate is None else f"{st.hit_rate * 100:.0f} %", pct(st.avg_pnl))
-        console.print(vt)
-        per_date, pooled = ("je Termin", "gepoolt") if de else ("per date", "pooled")
-        console.print(f"Long - Short spread ({per_date}): {pct(validation.spread)}"
-                      + (f" (t={validation.spread_tstat:+.2f}, {validation.spread_dates} dates)"
-                         if validation.spread_tstat is not None else ""))
-        console.print(f"Long - Short spread ({pooled}): {pct(validation.spread_pooled)}")
-        console.print(f"[dim]{CAVEATS[lang][0]}[/dim]")
-
-    deep_result = None
-    if deep:
-        picks = sorted([*result.longs, *result.shorts], key=lambda s: -abs(s.score))[:deep]
-        console.print(f"\nRunning the LLM agents on {len(picks)} ideas: "
-                      f"{', '.join(s.symbol for s in picks)} ...")
-        deep_result = deep_dive(picks, result.as_of_date or result.requested_date, DEFAULT_CONFIG)
-        for symbol, rating in deep_result.ratings.items():
-            console.print(f"  {symbol}: {rating}")
-        for symbol, error in deep_result.errors.items():
-            console.print(f"  [yellow]{symbol} failed: {error}[/yellow]")
-
+    saved = []
+    if digest:
+        text = build_digest([r for r, _ in results], lang, horizons=horizons).text
+        if failures:
+            text += "\n\n" + _c("failed_digest", lang, markets=", ".join(n for n, _ in failures))
+        typer.echo(text)
+        # The digest run stays silent (no agents, no tables); the files are written when asked.
+        saved = [(r, v, None) for r, v in results]
+    else:
+        for result, validation in results:
+            console.print(f"\n[bold]{escape(universe_description(result, lang))}[/bold] "
+                          f"({result.universe}), {_c('data_as_of', lang)} "
+                          f"{fmt_date(result.as_of_date, lang) if result.as_of_date else '-'}")
+            tone = {"risk-on": "green", "risk-off": "red", "neutral": "yellow"}[result.regime.label]
+            console.print(f"{_c('regime', lang)}: [{tone}]{REGIME_LABELS[result.regime.label][lang]}"
+                          f"[/{tone}] ({result.regime.points:+d})")
+            for line in result.regime.describe(lang):
+                console.print(f"  - {escape(localize_text(line, lang))}", soft_wrap=True)
+            for warning in result.warnings:
+                text = warning.text(lang) if hasattr(warning, "text") else warning
+                console.print(f"[yellow]{escape(text)}[/yellow]", soft_wrap=True)
+            _print_recommendations(result, lang, horizons)
+            _print_watch(result, lang, horizons)
+            _print_solid(result, lang, horizons)
+            if validation is not None:
+                _print_validation(validation, lang)
+            deep_result = None
+            if deep:
+                picks = sorted([*result.longs, *result.shorts], key=lambda s: -abs(s.score))[:deep]
+                console.print(f"\n{_c('agents', lang, n=len(picks), names=', '.join(s.symbol for s in picks))}")
+                deep_result = deep_dive(picks, result.as_of_date or result.requested_date, DEFAULT_CONFIG)
+                for symbol, rating in deep_result.ratings.items():
+                    console.print(f"  {symbol}: {rating}")
+                for symbol, error in deep_result.errors.items():
+                    console.print(f"  [yellow]{escape(_c('agent_failed', lang, sym=symbol, err=error))}[/yellow]")
+            saved.append((result, validation, deep_result))
     if save:
-        paths = save_scan(result, validation, deep_result, lang,
-                          output or DEFAULT_CONFIG["results_dir"])
-        console.print(f"\nSaved: {paths['md']}\n       {paths['html']}\n       {paths['json']}",
-                      soft_wrap=True)
-    console.print("[dim]Research tool, not financial advice. Shorts carry unlimited loss risk.[/dim]")
+        for result, validation, deep_result in saved:
+            paths = save_scan(result, validation, deep_result, lang,
+                              output or DEFAULT_CONFIG["results_dir"], horizons)
+            if not digest:
+                console.print(f"\n{_c('saved', lang)} {paths['md']}\n       {paths['html']}\n"
+                              f"       {paths['json']}\n       {paths['digest']}", soft_wrap=True)
+    if not digest:
+        console.print(f"\n[dim]{_c('disclaimer', lang)}[/dim]", soft_wrap=True)
 
 
 if __name__ == "__main__":
