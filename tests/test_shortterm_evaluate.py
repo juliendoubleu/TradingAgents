@@ -113,3 +113,10 @@ def test_random_baseline_band_contains_zero_gross_direction_skill():
                  enumerate(rng.normal(0, 0.01, 25), start=1)])
     b = ev.baselines(t, 0.0)
     assert b["random_lo_bps"] < 0 < b["random_hi_bps"]
+
+
+@pytest.mark.unit
+def test_beats_drift_needs_a_significant_positive_excess():
+    assert ev.beats_drift({"excess_t_stat": 2.1, "mean_excess_bps": 5.0})
+    assert not ev.beats_drift({"excess_t_stat": 2.1, "mean_excess_bps": -5.0})
+    assert not ev.beats_drift({"excess_t_stat": 0.8, "mean_excess_bps": 5.0})

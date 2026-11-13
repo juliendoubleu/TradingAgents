@@ -55,6 +55,11 @@ class ShortTermIdea:
     verdict: str              # "validated" | "experimental"
     study_date: str
     simulation_only: bool = True
+    # False when the OOS gain is no more than the universe's own drift (a long rule in a
+    # rising market): the idea is validated by the pre-registered rule but not "skill"
+    beats_drift: bool | None = None
+    oos_excess_bps: float | None = None
+    oos_excess_t_stat: float | None = None
 
 
 def load_snapshot(path: str | Path | None = None) -> dict | None:
@@ -129,5 +134,8 @@ def shortterm_ideas(
                 oos_win_rate=oos.get("win_rate"), oos_mean_net_bps=oos.get("mean_net_bps"),
                 oos_n_trades=oos.get("n_trades"), oos_t_stat=oos.get("t_stat"),
                 verdict=strat["verdict"], study_date=snap.get("study_date", ""),
+                beats_drift=strat.get("beats_drift"),
+                oos_excess_bps=oos.get("mean_excess_bps"),
+                oos_excess_t_stat=oos.get("excess_t_stat"),
             ))
     return ideas

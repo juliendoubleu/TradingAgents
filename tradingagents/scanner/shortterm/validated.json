@@ -1,6 +1,6 @@
 {
   "study_date": "2026-11-12",
-  "generated_at": "2026-11-13T10:58:28Z",
+  "generated_at": "2026-11-13T10:59:38Z",
   "is_fraction": 0.7,
   "data": {
     "windows": {
@@ -140,6 +140,7 @@
       "note": "",
       "verdict": "rejected",
       "strong": false,
+      "beats_drift": false,
       "IS": {
         "n_trades": 16721,
         "n_days": 1688,
@@ -306,6 +307,7 @@
       "note": "",
       "verdict": "rejected",
       "strong": false,
+      "beats_drift": false,
       "IS": {
         "n_trades": 1216,
         "n_days": 603,
@@ -473,6 +475,7 @@
       "note": "",
       "verdict": "rejected",
       "strong": false,
+      "beats_drift": false,
       "IS": {
         "n_trades": 1010,
         "n_days": 490,
@@ -640,6 +643,7 @@
       "note": "",
       "verdict": "rejected",
       "strong": false,
+      "beats_drift": false,
       "IS": {
         "n_trades": 1993,
         "n_days": 867,
@@ -807,6 +811,7 @@
       "note": "",
       "verdict": "rejected",
       "strong": false,
+      "beats_drift": false,
       "IS": {
         "n_trades": 4644,
         "n_days": 1291,
@@ -969,6 +974,7 @@
       "note": "",
       "verdict": "rejected",
       "strong": false,
+      "beats_drift": false,
       "IS": {
         "n_trades": 22425,
         "n_days": 345,
@@ -1131,6 +1137,7 @@
       "note": "",
       "verdict": "rejected",
       "strong": false,
+      "beats_drift": false,
       "IS": {
         "n_trades": 22425,
         "n_days": 345,
@@ -1293,6 +1300,7 @@
       "note": "",
       "verdict": "rejected",
       "strong": false,
+      "beats_drift": false,
       "IS": {
         "n_trades": 15042,
         "n_days": 345,
@@ -1457,6 +1465,7 @@
       "note": "",
       "verdict": "rejected",
       "strong": false,
+      "beats_drift": false,
       "IS": {
         "n_trades": 626,
         "n_days": 222,
@@ -1619,6 +1628,7 @@
       "note": "",
       "verdict": "rejected",
       "strong": false,
+      "beats_drift": false,
       "IS": {
         "n_trades": 1428,
         "n_days": 30,
@@ -1785,6 +1795,7 @@
       "note": "",
       "verdict": "rejected",
       "strong": false,
+      "beats_drift": false,
       "IS": {
         "n_trades": 364,
         "n_days": 30,
@@ -1950,6 +1961,7 @@
       "note": "",
       "verdict": "rejected",
       "strong": false,
+      "beats_drift": false,
       "IS": {
         "n_trades": 18,
         "n_days": 11,
@@ -2112,6 +2124,7 @@
       "note": "",
       "verdict": "rejected",
       "strong": false,
+      "beats_drift": false,
       "IS": {
         "n_trades": 777,
         "n_days": 30,
@@ -2279,6 +2292,7 @@
       "note": "",
       "verdict": "rejected",
       "strong": false,
+      "beats_drift": false,
       "IS": {
         "n_trades": 5460,
         "n_days": 1427,
@@ -2445,6 +2459,7 @@
       "note": "",
       "verdict": "rejected",
       "strong": false,
+      "beats_drift": false,
       "IS": {
         "n_trades": 1256,
         "n_days": 485,
@@ -2611,6 +2626,7 @@
       "note": "",
       "verdict": "rejected",
       "strong": false,
+      "beats_drift": false,
       "IS": {
         "n_trades": 3200,
         "n_days": 1148,
@@ -2778,6 +2794,7 @@
       "note": "",
       "verdict": "rejected",
       "strong": false,
+      "beats_drift": false,
       "IS": {
         "n_trades": 393,
         "n_days": 293,
@@ -2946,6 +2963,7 @@
       "note": "In-sample, all of S4's per-trade edge sat on the short side (heavy-volume gap downs keep falling).",
       "verdict": "rejected",
       "strong": false,
+      "beats_drift": false,
       "IS": {
         "n_trades": 210,
         "n_days": 161,
@@ -3113,6 +3131,7 @@
       "note": "In-sample, S2 earned on the short side and lost on the long side.",
       "verdict": "rejected",
       "strong": false,
+      "beats_drift": false,
       "IS": {
         "n_trades": 494,
         "n_days": 195,
@@ -3280,6 +3299,7 @@
       "note": "In-sample, breakouts paid while breakdown shorts were squeezed.",
       "verdict": "validated",
       "strong": true,
+      "beats_drift": false,
       "IS": {
         "n_trades": 1676,
         "n_days": 826,
@@ -3447,6 +3467,7 @@
       "note": "A deeper pullback should bounce further relative to the fixed round-trip cost.",
       "verdict": "rejected",
       "strong": false,
+      "beats_drift": false,
       "IS": {
         "n_trades": 2765,
         "n_days": 1059,
@@ -3615,6 +3636,7 @@
       "note": "Costs are fixed in bps while the bounce scales with volatility, so trade only when ATR% >= 2 %.",
       "verdict": "rejected",
       "strong": false,
+      "beats_drift": false,
       "IS": {
         "n_trades": 3000,
         "n_days": 1054,
@@ -3783,6 +3805,7 @@
       "note": "D5 was gross-positive but about equal to its 5 bps cost; larger daily ranges (ATR% >= 2 %) dilute the cost.",
       "verdict": "rejected",
       "strong": false,
+      "beats_drift": false,
       "IS": {
         "n_trades": 2560,
         "n_days": 912,
@@ -3947,6 +3970,7 @@
       "note": "A 1-ATR first hour is too common to fade; require 2 ATR%.",
       "verdict": "rejected",
       "strong": false,
+      "beats_drift": false,
       "IS": {
         "n_trades": 25,
         "n_days": 22,

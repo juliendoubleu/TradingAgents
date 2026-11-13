@@ -203,6 +203,15 @@ def verdict(is_stats: dict, oos_stats: dict, oos_stats_2x: dict, all_stats: dict
     return {"verdict": label, "strong": bool(all_stats["t_stat"] >= STRONG_T)}
 
 
+def beats_drift(oos_stats: dict) -> bool:
+    """Whether the OOS result is more than the market's own drift: excess t >= 2 and > 0.
+
+    Kept apart from ``verdict`` (whose thresholds were fixed beforehand): a long-only
+    rule can pass it in a rising market while earning exactly what the universe earned.
+    """
+    return oos_stats["excess_t_stat"] >= VALIDATED_T and oos_stats["mean_excess_bps"] > 0
+
+
 def evaluate_strategy(trades: pd.DataFrame, is_days, oos_days, base_cost_bps: float, *,
                       include_oos: bool = True) -> dict:
     """IS, OOS and ALL statistics at 1x/2x/4x costs, baselines and the verdict.
@@ -226,6 +235,7 @@ def evaluate_strategy(trades: pd.DataFrame, is_days, oos_days, base_cost_bps: fl
     result["baselines"]["OOS"] = baselines(oos_t, base_cost_bps)
     oos_2x = segment_stats(oos_t, base_cost_bps * 2, boot=False)
     result.update(verdict(result["IS"], result["OOS"], oos_2x, result["ALL"]))
+    result["beats_drift"] = beats_drift(result["OOS"])
     return result
 
 

@@ -305,6 +305,7 @@ def snapshot_dict(study: Study) -> dict:
             "timeframe": spec.timeframe, "name_en": spec.name_en, "name_de": spec.name_de,
             "params": spec.params, "note": spec.note,
             "verdict": res.get("verdict"), "strong": res.get("strong"),
+            "beats_drift": res.get("beats_drift"),
             "IS": res["IS"], "OOS": res.get("OOS"), "ALL": res.get("ALL"),
             "cost_sensitivity": res["cost_sensitivity"], "baselines": res["baselines"],
         })
@@ -381,6 +382,19 @@ def _assessment(study: Study) -> list[str]:
         "durch Zufall zu erwarten. Maßgeblich ist der unberührte Testzeitraum (OOS): dort hatten "
         f"{len(oos_pos)} Variante(n) einen positiven Netto-Durchschnitt "
         f"({', '.join(oos_pos) or 'keine'}).")
+    for i in validated + experimental:
+        o, b = res[i]["OOS"], res[i]["baselines"]["OOS"]
+        if not res[i]["beats_drift"]:
+            out.append(
+                f"**Wichtig zu {i}:** Das Urteil „{VERDICT_DE[verdicts[i]]}“ besagt nur, dass der "
+                f"Netto-Ertrag nach Kosten positiv war. Gegenüber dem Durchschnitt des Universums "
+                f"im gleichen Zeitfenster beträgt der Excess im OOS {_n(o['mean_excess_bps'])} bp "
+                f"(t = {_n(o['excess_t_stat'], 2)}), und die Basislinie „immer Long“ über dieselben "
+                f"Fenster erzielt {_n(b['always_long_net_bps'])} bp gegenüber "
+                f"{_n(b['strategy_dir_net_bps'])} bp bei der eigenen Richtung. Der Ertrag stammt "
+                "also aus der Marktdrift (ein steigender Aktienmarkt, plus Survivorship-Bias der "
+                "heutigen Large Caps), nicht aus einem Können der Regel. Wer Long-Aktien hält, "
+                "verdient dasselbe, ohne die Regel zu brauchen.")
     if skill:
         out.append(
             "Über den Marktdurchschnitt hinaus (Excess, t ≥ 2 im OOS) zeigten sich Hinweise bei: "
