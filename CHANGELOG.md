@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Changes that need action when upgrading are listed under "Upgrading from" in their release.
 
+## [Unreleased]
+
+### Added
+
+- **Market scan.** `tradingagents scan` scans a universe (`us`, `sectors`, `global`, `dax`, `crypto`, `all`, or your own `--tickers`) on Yahoo Finance prices and lists the best Long and Short ideas, each with a score, conviction, entry, stop, target and a suggested position size, plus a market regime (risk-on, neutral or risk-off) that shifts the thresholds. It is rule-based and needs no LLM key. The report is printed and saved as `scan.md`, `scan.html` and `scan.json` under `<results_dir>/scans/`, in English or German (`--lang`).
+- **Walk-forward validation.** `--validate` replays the scanner over the last `--months` months using only the bars known at each date, and reports calls, forward return, excess return and hit rate per direction, with its caveats (survivorship bias, no costs, small sample).
+- **Deep dive.** `--deep N` runs the existing agent graph on the N strongest ideas and shows its rating beside the scanner's call.
+- `load_bulk_ohlcv()` in the Yahoo data layer downloads daily bars for many symbols in batches, cut at the requested date.
+
 ## [0.6.0] — 2026-10-03
 
 HTML reports, a provider per model tier, past decisions settled for every ticker while the analysts work, and company news read while Yahoo's news feed is down.

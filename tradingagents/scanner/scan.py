@@ -132,11 +132,11 @@ def run_scan(
     as_of_date: str,
     tickers: list[str] | None = None,
     top: int = 10,
-    loader: Loader = load_bulk_ohlcv,
+    loader: Loader | None = None,
 ) -> ScanResult:
     """Scan ``universe`` as of ``as_of_date`` and rank the Long and Short ideas.
 
-    ``loader(symbols, as_of_date, lookback_days)`` supplies the bars (Yahoo by default,
+    ``loader(symbols, as_of_date, lookback_days)`` supplies the bars (Yahoo when None,
     injectable so tests run offline). The result states the date of the newest bar that
     was really used, which is earlier than the requested date on weekends, holidays
     and before the close.
@@ -147,7 +147,7 @@ def run_scan(
     description, benchmark, members = resolve_universe(universe, tickers)
     members = list(dict.fromkeys(normalize_symbol(t) for t in members))
     wanted = list(dict.fromkeys([*members, benchmark, VIX]))
-    frames = loader(wanted, as_of_date, LOOKBACK_DAYS)
+    frames = (loader or load_bulk_ohlcv)(wanted, as_of_date, LOOKBACK_DAYS)
 
     regime, signals, skipped = analyse(members, frames, benchmark)
     warnings: list[str] = []

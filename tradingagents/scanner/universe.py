@@ -63,11 +63,11 @@ def _union(*lists: list[str]) -> list[str]:
 
 # name -> (description, benchmark, tickers)
 UNIVERSES: dict[str, tuple[str, str, list[str]]] = {
-    "us": ("60 liquid US large caps across all 11 GICS sectors", "SPY", _US),
+    "us": (f"{len(_US)} liquid US large caps across all 11 GICS sectors", "SPY", _US),
     "sectors": ("The 11 SPDR US sector ETFs", "SPY", _SECTORS),
     "global": ("Country, region, bond, commodity and dollar ETFs", "SPY", _GLOBAL),
-    "dax": ("The 40 DAX members (Xetra)", "^GDAXI", _DAX),
-    "crypto": ("12 large crypto coins vs USD", "BTC-USD", _CRYPTO),
+    "dax": (f"The {len(_DAX)} DAX members (Xetra)", "^GDAXI", _DAX),
+    "crypto": (f"{len(_CRYPTO)} large crypto coins vs USD", "BTC-USD", _CRYPTO),
     "all": ("US large caps + sector ETFs + global ETFs", "SPY", _union(_US, _SECTORS, _GLOBAL)),
 }
 

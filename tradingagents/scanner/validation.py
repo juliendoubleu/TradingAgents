@@ -76,7 +76,7 @@ class ValidationResult:
     rebalances: int
     instruments: int
     stats: dict[str, DirectionStats]
-    spread: float | None                     # avg Long return minus avg Short return
+    spread: float | None                     # Long minus Short return, averaged over the dates
     spread_tstat: float | None               # of the per-date spreads, when enough dates
     spread_dates: int                        # dates that had both Long and Short calls
     universe_avg_return: float | None        # all calls, equal weight: the no-skill baseline
@@ -125,7 +125,7 @@ def validate(
     tickers: list[str] | None = None,
     months: int = 24,
     horizon: int = HORIZON_BARS,
-    loader: Loader = load_bulk_ohlcv,
+    loader: Loader | None = None,
 ) -> ValidationResult:
     """Walk-forward test of the signals over the last ``months`` months."""
     if months < 1 or horizon < 1:
@@ -135,7 +135,7 @@ def validate(
     members = list(dict.fromkeys(normalize_symbol(t) for t in members))
     wanted = list(dict.fromkeys([*members, benchmark, VIX]))
     lookback = int((months + WARMUP_MONTHS) * 30.5)
-    frames = loader(wanted, as_of_date, lookback)
+    frames = (loader or load_bulk_ohlcv)(wanted, as_of_date, lookback)
     return validate_frames(universe, as_of_date, members, benchmark, frames, months, horizon)
 
 
@@ -203,10 +203,9 @@ def validate_frames(
 
     stats = {d: _stats(d, [r for r in rows if r[0] == d]) for d in ("Long", "Short", "Neutral")}
     all_rets = [r[1] for r in rows]
-    long_all = [r[1] for r in rows if r[0] == "Long"]
-    short_all = [r[1] for r in rows if r[0] == "Short"]
-    spread = (float(np.mean(long_all) - np.mean(short_all))) if long_all and short_all else None
     date_spreads = [float(np.mean(lg) - np.mean(sh)) for lg, sh in per_date if lg and sh]
+    # Averaged per date, like its t-statistic, so a date with many calls does not outweigh the rest.
+    spread = float(np.mean(date_spreads)) if date_spreads else None
     tstat = None
     if len(date_spreads) >= MIN_DATES_FOR_TSTAT:
         sd = float(np.std(date_spreads, ddof=1))

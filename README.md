@@ -215,6 +215,28 @@ Each flag skips only its own question. Run without a terminal, a missing answer 
 
 A saved report also includes `complete_report.html`, the report as one page with its sections listed beside the text, for reading in a browser, on a phone or in print. Answering the save question at the prompt also asks about the page and can open it in your browser; `--no-html` skips it, and so does `ta.save_reports(state, "NVDA", html=False)` from Python.
 
+### Market scan
+
+The agents above analyse one ticker at a time. `tradingagents scan` is the step before that: it scans a whole market, ranks where the opportunities are and where prices are weak, and gives each idea a Long or Short call with an entry, stop and target. It is rule-based and quantitative, runs on Yahoo Finance prices, and needs **no LLM key**.
+
+```bash
+tradingagents scan                                  # 61 US large caps, today
+tradingagents scan --universe dax --validate        # the DAX, plus a walk-forward check of the signals
+tradingagents scan --universe global --lang de      # ETFs across regions, bonds, gold, oil, the dollar; German report
+tradingagents scan --tickers NVDA,AMD,INTC --date 2026-09-30 --top 5
+tradingagents scan --universe us --deep 3           # then run the LLM agents on the 3 strongest ideas
+```
+
+Universes: `us` (61 large caps over all 11 sectors, vs SPY), `sectors` (the 11 SPDR sector ETFs), `global` (country, bond, commodity and dollar ETFs), `dax` (40 members, vs ^GDAXI), `crypto` (12 coins, vs BTC-USD) and `all` (us + sectors + global). `--tickers` replaces the members of the chosen universe and keeps its benchmark. A scan prints the market regime, the Top Long and Top Short tables, and (with `--save`, the default) writes `scan.md`, `scan.html` and `scan.json` under `<results_dir>/scans/<universe>_<date>/`; `--output DIR` changes the base directory and `--lang en|de` the report language (default: German if `TRADINGAGENTS_OUTPUT_LANGUAGE` is German).
+
+**How the score and the call are derived.** Each instrument needs at least 220 daily bars. Six components, each between -1 and +1, are weighted into a score between -100 and +100: trend 30 % (price vs its 50- and 200-day averages, the averages vs each other, slope of the 50-day), momentum 25 % (6- and 3-month return scaled by volatility), relative strength vs the benchmark 20 % (3-month), MACD 10 %, an RSI guard 10 % (overbought counts against a long, oversold against a short) and volume 5 %. The thresholds depend on the market regime, which is read from the benchmark's trend, the share of the universe above its 200-day average and the VIX: in a neutral regime Long is a score of +35 or more and Short -35 or less; in a risk-on regime Long needs +25 and Short -50; in a risk-off regime Long needs +50 and Short -25. Conviction is High from |score| 65, Medium from 50. A Long or Short gets entry = last close, stop 2 x ATR(14) away, target 3 x ATR (reward:risk 1.5), and a suggested position size that risks 1 % of capital if the stop is hit, capped at 10 % of capital. Every reason shown is computed from the numbers, never written by a model.
+
+**Validation.** `--validate` replays the scanner over the last `--months` (default 24): at every 21-trading-day step it recomputes the regime and the signals with the same code as the live scan using only bars up to that day, then measures what each call did over the next 21 trading days against the benchmark. It reports calls, average forward return, average excess return and hit rate for Long, Short and Neutral, and the Long-minus-Short spread. Treat it as a sanity check, not proof of an edge: today's universe members are applied to the past (survivorship bias), there are no costs, slippage or borrow fees, the sample is small, and calls on the same date are correlated. Past results do not guarantee future results, and the numbers can be negative: a rule that follows trends loses when markets reverse.
+
+**`--deep N`** hands the N strongest ideas to the agent graph above (`TradingAgentsGraph.propagate`) and shows its 5-tier rating next to the scanner's call. It needs the provider's API key and stops with a message if it is missing; the scan itself never calls a model.
+
+The scan is a research tool, not financial advice. It sees prices only (no news, earnings or events), and a short position carries theoretically unlimited loss risk.
+
 ### Markets and tickers
 
 TradingAgents works with any market Yahoo Finance covers, using the exchange-suffixed ticker. Company identity and the alpha benchmark resolve automatically per market.
