@@ -55,33 +55,40 @@ VARIANTS: list[StrategySpec] = [
                  "Drift nach Kurslücke, nur Short",
                  {"gap": 1.5, "vol": 2.0, "hold": 5, "stop_atr": 2.0, "sides": "short"},
                  "In-sample, all of S4's per-trade edge sat on the short side (heavy-volume "
-                 "gap downs keep falling)."),
+                 "gap downs keep falling).",
+                 note_de="Im IS lag der gesamte Vorteil von S4 auf der Short-Seite (Kurslücken nach unten mit hohem Volumen laufen weiter)."),
     StrategySpec("S2s", "S2", "swing", "1d", "5-day reversal, short side only",
                  "5-Tage-Umkehr, nur Short",
                  {"z": 2.0, "hold": 5, "stop_atr": 2.5, "sides": "short"},
-                 "In-sample, S2 earned on the short side and lost on the long side."),
+                 "In-sample, S2 earned on the short side and lost on the long side.",
+                 note_de="Im IS verdiente S2 auf der Short-Seite und verlor auf der Long-Seite."),
     StrategySpec("S3l", "S3", "swing", "1d", "Volume breakout, long side only",
                  "Ausbruch mit Volumen, nur Long",
                  {"vol": 1.5, "hold": 10, "stop_atr": 2.0, "sides": "long"},
-                 "In-sample, breakouts paid while breakdown shorts were squeezed."),
+                 "In-sample, breakouts paid while breakdown shorts were squeezed.",
+                 note_de="Im IS zahlten sich Ausbrüche aus, während Short-Positionen bei Ausbrüchen nach unten ausgequetscht wurden."),
     StrategySpec("S1x", "S1", "swing", "1d", "RSI(2) pullback, extreme threshold",
                  "RSI(2)-Rücksetzer, extremere Schwelle",
                  {"lo": 5, "hi": 95, "hold": 5, "stop_atr": 2.5},
-                 "A deeper pullback should bounce further relative to the fixed round-trip cost."),
+                 "A deeper pullback should bounce further relative to the fixed round-trip cost.",
+                 note_de="Ein tieferer Rücksetzer sollte im Verhältnis zu den festen Kosten weiter zurückspringen."),
     StrategySpec("S1v", "S1", "swing", "1d", "RSI(2) pullback, volatile names only",
                  "RSI(2)-Rücksetzer, nur volatile Titel",
                  {"lo": 10, "hi": 90, "hold": 5, "stop_atr": 2.5, "atr_pct_min": 0.02},
                  "Costs are fixed in bps while the bounce scales with volatility, so trade "
-                 "only when ATR% >= 2 %."),
+                 "only when ATR% >= 2 %.",
+                 note_de="Die Kosten sind in bp fest, der Rücksprung wächst mit der Schwankung: nur Titel mit ATR% ≥ 2 %."),
     StrategySpec("D5v", "D5", "day", "1d", "RSI(2) extreme day trade, volatile names only",
                  "RSI(2)-Extrem Daytrade, nur volatile Titel",
                  {"lo": 5, "hi": 95, "stop_atr": 1.0, "hold": 1, "atr_pct_min": 0.02},
                  "D5 was gross-positive but about equal to its 5 bps cost; larger daily "
-                 "ranges (ATR% >= 2 %) dilute the cost."),
+                 "ranges (ATR% >= 2 %) dilute the cost.",
+                 note_de="D5 war brutto positiv, aber etwa so groß wie die 5 bp Kosten; größere Tagesspannen (ATR% ≥ 2 %) verdünnen die Kosten."),
     StrategySpec("H3x", "H3", "day", "60m", "Morning fade, only extreme first hours",
                  "Morgen-Fade, nur extreme erste Stunde",
                  {"mult": 2.0},
-                 "A 1-ATR first hour is too common to fade; require 2 ATR%."),
+                 "A 1-ATR first hour is too common to fade; require 2 ATR%.",
+                 note_de="Eine erste Stunde von 1 ATR ist zu häufig zum Faden; verlangt werden 2 ATR%."),
 ]
 
 
@@ -428,7 +435,8 @@ def write_report(study: Study, path: str | Path) -> Path:
 
     L.append("## 2. Ergebnisse je Strategie (netto nach Kosten)")
     L.append("Ø bp = durchschnittlicher Netto-Ertrag je Trade in Basispunkten; t = Tages-geclusterter "
-             "t-Wert; Intervall = 95 %-Intervall des durchschnittlichen **Tagesertrags** (bp) im OOS.\n")
+             "t-Wert (gehört zum Durchschnitt der Tageserträge; der Trade-Durchschnitt kann an "
+             "Tagen mit vielen Trades davon abweichen, auch im Vorzeichen); Intervall = 95 %-Intervall des durchschnittlichen **Tagesertrags** (bp) im OOS.\n")
     rows = []
     for s in specs:
         r = res[s.id]
@@ -448,7 +456,7 @@ def write_report(study: Study, path: str | Path) -> Path:
              "OOS-Durchschnitt auch bei doppelten Kosten > 0, mindestens 100 OOS-Trades an ≥ 20 "
              "OOS-Tagen. *experimentell* = IS-t ≥ 2, OOS-Durchschnitt > 0, OOS-t ≥ 1, ≥ 50 OOS-Trades. "
              "Alles andere *verworfen*. „stark“ nur bei gepooltem t ≥ 3. Die 5-Minuten-Strategien haben "
-             "nur 13 OOS-Tage und können die Regel für „belegt“ konstruktionsbedingt nicht erfüllen.")
+             f"nur {study.splits['5m']['n_oos_days']} OOS-Tage und können die Regel für „belegt“ konstruktionsbedingt nicht erfüllen.")
 
     L.append("\n### Brutto, Excess und Long/Short (OOS)")
     L.append("Excess = Ertrag abzüglich des Durchschnitts des gesamten Universums im gleichen "
@@ -505,7 +513,7 @@ def write_report(study: Study, path: str | Path) -> Path:
     for s in specs:
         if s.id in {v.id for v in VARIANTS}:
             r = res[s.id]
-            rows.append([s.id, s.name_de, s.note, _n(r["IS"]["mean_net_bps"]),
+            rows.append([s.id, s.name_de, s.note_de, _n(r["IS"]["mean_net_bps"]),
                          _n(r["IS"]["t_stat"], 2), _n(r["OOS"]["mean_net_bps"]),
                          _n(r["OOS"]["t_stat"], 2), VERDICT_DE[r["verdict"]]])
     L.append(_table(["ID", "Variante", "Begründung (nur IS-Evidenz)", "IS Ø bp", "IS t",

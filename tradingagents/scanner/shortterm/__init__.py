@@ -40,7 +40,8 @@ class StrategySpec:
     name_en: str
     name_de: str
     params: dict = field(default_factory=dict)
-    note: str = ""               # for variants: the one-sentence motivation
+    note: str = ""               # for variants: the one-sentence motivation (en)
+    note_de: str = ""            # ... and in German for the report
 
 
 def daily_features(df: pd.DataFrame) -> pd.DataFrame:
