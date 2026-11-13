@@ -12,6 +12,8 @@ daily signal reads, so the study and the live ideas run the SAME signal code.
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+
 import numpy as np
 import pandas as pd
 
@@ -21,6 +23,24 @@ from tradingagents.scanner import indicators as ind
 COSTS_BPS = {"day": 5.0, "swing": 10.0}
 COST_MULTIPLES = (1.0, 2.0, 4.0)
 IS_FRACTION = 0.70
+
+
+@dataclass(frozen=True)
+class StrategySpec:
+    """One candidate: which signal family it runs, with which parameters.
+
+    Variants of a strategy share its ``family`` (hence its signal function) and
+    differ only in ``params``, so the live ideas and the study can never diverge.
+    """
+
+    id: str
+    family: str
+    horizon: str                 # "day" | "swing"
+    timeframe: str               # "1d" | "60m" | "5m"
+    name_en: str
+    name_de: str
+    params: dict = field(default_factory=dict)
+    note: str = ""               # for variants: the one-sentence motivation
 
 
 def daily_features(df: pd.DataFrame) -> pd.DataFrame:

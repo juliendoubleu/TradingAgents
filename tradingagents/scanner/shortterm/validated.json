@@ -1,0 +1,4102 @@
+{
+  "study_date": "2026-11-12",
+  "generated_at": "2026-11-13T10:58:28Z",
+  "is_fraction": 0.7,
+  "data": {
+    "windows": {
+      "1d": {
+        "first_day": "2016-11-14",
+        "last_day": "2026-11-12",
+        "n_days": 2513
+      },
+      "60m": {
+        "first_day": "2024-11-14",
+        "last_day": "2026-11-12",
+        "n_days": 493
+      },
+      "5m": {
+        "first_day": "2026-09-15",
+        "last_day": "2026-11-12",
+        "n_days": 43
+      }
+    },
+    "inventory": {
+      "60m": {
+        "symbols": 65,
+        "calendar_days": 500,
+        "complete_days": 493,
+        "symbol_sessions": 32500,
+        "complete_symbol_sessions": 32045,
+        "first_day": "2024-11-14",
+        "last_day": "2026-11-12"
+      },
+      "5m": {
+        "symbols": 65,
+        "calendar_days": 43,
+        "complete_days": 43,
+        "symbol_sessions": 2795,
+        "complete_symbol_sessions": 2790,
+        "first_day": "2026-09-15",
+        "last_day": "2026-11-12"
+      },
+      "1d": {
+        "symbols": 65,
+        "first_day": "2016-11-14",
+        "last_day": "2026-11-12",
+        "calendar_days": 2513
+      }
+    }
+  },
+  "splits": {
+    "1d": {
+      "is_first": "2016-11-14",
+      "is_last": "2023-11-09",
+      "oos_first": "2023-11-10",
+      "oos_last": "2026-11-12",
+      "n_is_days": 1759,
+      "n_oos_days": 754
+    },
+    "60m": {
+      "is_first": "2024-11-14",
+      "is_last": "2026-04-14",
+      "oos_first": "2026-04-15",
+      "oos_last": "2026-11-12",
+      "n_is_days": 345,
+      "n_oos_days": 148
+    },
+    "5m": {
+      "is_first": "2026-09-15",
+      "is_last": "2026-10-26",
+      "oos_first": "2026-10-27",
+      "oos_last": "2026-11-12",
+      "n_is_days": 30,
+      "n_oos_days": 13
+    }
+  },
+  "cost_assumptions_bps": {
+    "day": 5.0,
+    "swing": 10.0
+  },
+  "variants_tried": 24,
+  "drift_reference": {
+    "1d": {
+      "IS": {
+        "open_close_bps": 1.9857704226808754,
+        "open_close_t": 0.9713458110284734,
+        "hold5_bps": 31.28555771306892,
+        "hold5_t": 5.624069390585434
+      },
+      "OOS": {
+        "open_close_bps": 2.3839669868817213,
+        "open_close_t": 0.9383168907017488,
+        "hold5_bps": 35.175435965971275,
+        "hold5_t": 6.185183679108991
+      }
+    },
+    "60m": {
+      "IS": {
+        "open_close_bps": 2.276214156322347,
+        "open_close_t": 0.48855689927976653,
+        "hold5_bps": 29.595297621406296,
+        "hold5_t": 3.0088745444688105
+      },
+      "OOS": {
+        "open_close_bps": -3.7690879449231907,
+        "open_close_t": -0.8485050266706132,
+        "hold5_bps": 19.927430458079407,
+        "hold5_t": 2.3601254947879515
+      }
+    },
+    "5m": {
+      "IS": {
+        "open_close_bps": -2.783386439944511,
+        "open_close_t": -0.3639469748033149,
+        "hold5_bps": 28.665972326520187,
+        "hold5_t": 1.4693354878226441
+      },
+      "OOS": {
+        "open_close_bps": -0.19639604124604956,
+        "open_close_t": -0.005832738645486426,
+        "hold5_bps": 33.350586794387695,
+        "hold5_t": 0.5909286893077256
+      }
+    }
+  },
+  "simulation_only": true,
+  "strategies": [
+    {
+      "id": "D1",
+      "family": "D1",
+      "horizon": "day",
+      "timeframe": "1d",
+      "name_en": "Gap fade (daily bars)",
+      "name_de": "Gap-Fade (Tagesbalken)",
+      "params": {
+        "lo": 0.3,
+        "hi": 1.5,
+        "stop_atr": 1.0,
+        "hold": 1
+      },
+      "note": "",
+      "verdict": "rejected",
+      "strong": false,
+      "IS": {
+        "n_trades": 16721,
+        "n_days": 1688,
+        "trades_per_day": 9.905805687203792,
+        "win_rate": 0.4909395371090246,
+        "mean_net_bps": -8.728786716568225,
+        "median_net_bps": -2.9321611636673417,
+        "mean_gross_bps": -3.7287867165682207,
+        "t_stat": -2.069270391119144,
+        "mean_daily_net_bps": -5.406173578386931,
+        "profit_factor": 0.8681734007939143,
+        "ci_low_bps": -10.378956080195024,
+        "ci_high_bps": -0.30918745244307827,
+        "sharpe": -0.7995236095622591,
+        "max_drawdown_pct": 118.30621931268882,
+        "mean_excess_bps": -4.272516371847548,
+        "excess_t_stat": -1.4862530160479361,
+        "long": {
+          "n_trades": 10690,
+          "mean_net_bps": -0.9750432687966869,
+          "win_rate": 0.5151543498596819,
+          "t_stat": -1.0797463327839039
+        },
+        "short": {
+          "n_trades": 6031,
+          "mean_net_bps": -22.472364474266406,
+          "win_rate": 0.4480185707179572,
+          "t_stat": -0.9576172095851665
+        }
+      },
+      "OOS": {
+        "n_trades": 6890,
+        "n_days": 747,
+        "trades_per_day": 9.223560910307897,
+        "win_rate": 0.5076923076923077,
+        "mean_net_bps": -0.7785211241585186,
+        "median_net_bps": 2.3835967281588033,
+        "mean_gross_bps": 4.221478875841486,
+        "t_stat": -2.1108866469961436,
+        "mean_daily_net_bps": -7.150268335849439,
+        "profit_factor": 0.9866989249467675,
+        "ci_low_bps": -13.488009912454993,
+        "ci_high_bps": -0.4049752340503634,
+        "sharpe": -1.2260406851730425,
+        "max_drawdown_pct": 73.9505807267,
+        "mean_excess_bps": -5.286546562035742,
+        "excess_t_stat": -2.6707619348993425,
+        "long": {
+          "n_trades": 4545,
+          "mean_net_bps": -1.3282594214242995,
+          "win_rate": 0.5148514851485149,
+          "t_stat": -0.2108959886632884
+        },
+        "short": {
+          "n_trades": 2345,
+          "mean_net_bps": 0.2869631236337954,
+          "win_rate": 0.49381663113006397,
+          "t_stat": -2.243223303443204
+        }
+      },
+      "ALL": {
+        "n_trades": 23611,
+        "n_days": 2435,
+        "trades_per_day": 9.696509240246407,
+        "win_rate": 0.4958282156621914,
+        "mean_net_bps": -6.408794766557515,
+        "median_net_bps": -1.4291630766743957,
+        "mean_gross_bps": -1.4087947665575102,
+        "t_stat": -2.8457710098166955,
+        "mean_daily_net_bps": -5.94122030685695,
+        "profit_factor": 0.8998187816745462,
+        "ci_low_bps": -9.9380261237882,
+        "ci_high_bps": -1.9531376624773755,
+        "sharpe": -0.9154839577754003,
+        "max_drawdown_pct": 161.03921702097412,
+        "mean_excess_bps": -4.568423703616496,
+        "excess_t_stat": -2.7379469898369075,
+        "long": {
+          "n_trades": 15235,
+          "mean_net_bps": -1.0804169093409925,
+          "win_rate": 0.5150639973744667,
+          "t_stat": -1.0262334789322365
+        },
+        "short": {
+          "n_trades": 8376,
+          "mean_net_bps": -16.10051356487338,
+          "win_rate": 0.4608404966571156,
+          "t_stat": -2.103380543429056
+        }
+      },
+      "cost_sensitivity": {
+        "1x": {
+          "IS": {
+            "cost_bps": 5.0,
+            "mean_net_bps": -8.728786716568225,
+            "t_stat": -2.069270391119144
+          },
+          "OOS": {
+            "cost_bps": 5.0,
+            "mean_net_bps": -0.7785211241585186,
+            "t_stat": -2.1108866469961436
+          }
+        },
+        "2x": {
+          "IS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": -13.72878671656823,
+            "t_stat": -3.9830735285098644
+          },
+          "OOS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": -5.778521124158522,
+            "t_stat": -3.5869757585143445
+          }
+        },
+        "4x": {
+          "IS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": -23.728786716568237,
+            "t_stat": -7.810679803291303
+          },
+          "OOS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": -15.778521124158525,
+            "t_stat": -6.5391539815507445
+          }
+        }
+      },
+      "baselines": {
+        "IS": {
+          "n_trades": 16721,
+          "always_long_net_bps": 5.01424309385511,
+          "always_long_t": -0.3980779437338283,
+          "strategy_dir_net_bps": -7.908396022962724,
+          "random_mean_net_bps": -5.17189003105414,
+          "random_lo_bps": -7.681309925642202,
+          "random_hi_bps": -2.635133997603672,
+          "universe_mean_bps": 7.489926556038087
+        },
+        "OOS": {
+          "n_trades": 6890,
+          "always_long_net_bps": -3.756080269038663,
+          "always_long_t": 0.05046104938248764,
+          "strategy_dir_net_bps": -1.173438638674103,
+          "random_mean_net_bps": -5.011084973576248,
+          "random_lo_bps": -8.930463596344433,
+          "random_hi_bps": -0.8455082802108942,
+          "universe_mean_bps": 1.4123320536106903
+        }
+      }
+    },
+    {
+      "id": "D2",
+      "family": "D2",
+      "horizon": "day",
+      "timeframe": "1d",
+      "name_en": "Gap continuation (daily bars)",
+      "name_de": "Gap-Fortsetzung (Tagesbalken)",
+      "params": {
+        "min": 1.5,
+        "stop_atr": 1.0,
+        "hold": 1
+      },
+      "note": "",
+      "verdict": "rejected",
+      "strong": false,
+      "IS": {
+        "n_trades": 1216,
+        "n_days": 603,
+        "trades_per_day": 2.0165837479270317,
+        "win_rate": 0.42023026315789475,
+        "mean_net_bps": -32.85949768113448,
+        "median_net_bps": -54.397722476513536,
+        "mean_gross_bps": -27.85949768113447,
+        "t_stat": -0.6679679865449745,
+        "mean_daily_net_bps": -5.78071030956913,
+        "profit_factor": 0.7267062187050238,
+        "ci_low_bps": -21.81316838542228,
+        "ci_high_bps": 10.376721197873925,
+        "sharpe": -0.4318145412677835,
+        "max_drawdown_pct": 63.13123778970693,
+        "mean_excess_bps": -43.329985853055376,
+        "excess_t_stat": -0.9451366170751788,
+        "long": {
+          "n_trades": 564,
+          "mean_net_bps": -22.65105992762784,
+          "win_rate": 0.4166666666666667,
+          "t_stat": -1.6965458155861082
+        },
+        "short": {
+          "n_trades": 652,
+          "mean_net_bps": -41.690109480180084,
+          "win_rate": 0.4233128834355828,
+          "t_stat": 1.3911575927457251
+        }
+      },
+      "OOS": {
+        "n_trades": 617,
+        "n_days": 291,
+        "trades_per_day": 2.120274914089347,
+        "win_rate": 0.42787682333873583,
+        "mean_net_bps": -13.896929134849868,
+        "median_net_bps": -58.76921227229881,
+        "mean_gross_bps": -8.896929134849865,
+        "t_stat": -1.9145177110468334,
+        "mean_daily_net_bps": -24.992983660138542,
+        "profit_factor": 0.8715922543377359,
+        "ci_low_bps": -48.65058414998766,
+        "ci_high_bps": -0.517263989203065,
+        "sharpe": -1.781612143614405,
+        "max_drawdown_pct": 74.86972061503565,
+        "mean_excess_bps": -14.662905056024057,
+        "excess_t_stat": -1.3770923516521025,
+        "long": {
+          "n_trades": 312,
+          "mean_net_bps": -21.374391553567374,
+          "win_rate": 0.41025641025641024,
+          "t_stat": -1.8184177075851389
+        },
+        "short": {
+          "n_trades": 305,
+          "mean_net_bps": -6.247852824555237,
+          "win_rate": 0.4459016393442623,
+          "t_stat": -0.27763496351422184
+        }
+      },
+      "ALL": {
+        "n_trades": 1833,
+        "n_days": 894,
+        "trades_per_day": 2.0503355704697985,
+        "win_rate": 0.4228041462084015,
+        "mean_net_bps": -26.47657089823344,
+        "median_net_bps": -55.02045720290838,
+        "mean_gross_bps": -21.476570898233437,
+        "t_stat": -1.666309290959195,
+        "mean_daily_net_bps": -12.034369755895417,
+        "profit_factor": 0.7721316553289989,
+        "ci_low_bps": -25.56398063646162,
+        "ci_high_bps": 2.335081578343671,
+        "sharpe": -0.8846818691535783,
+        "max_drawdown_pct": 108.18800997452284,
+        "mean_excess_bps": -33.68045565569132,
+        "excess_t_stat": -1.5874186347057297,
+        "long": {
+          "n_trades": 876,
+          "mean_net_bps": -22.196356123167952,
+          "win_rate": 0.4143835616438356,
+          "t_stat": -2.4235757255480848
+        },
+        "short": {
+          "n_trades": 957,
+          "mean_net_bps": -30.39451044155357,
+          "win_rate": 0.43051201671891326,
+          "t_stat": 0.8788092118203717
+        }
+      },
+      "cost_sensitivity": {
+        "1x": {
+          "IS": {
+            "cost_bps": 5.0,
+            "mean_net_bps": -32.85949768113448,
+            "t_stat": -0.6679679865449745
+          },
+          "OOS": {
+            "cost_bps": 5.0,
+            "mean_net_bps": -13.896929134849868,
+            "t_stat": -1.9145177110468334
+          }
+        },
+        "2x": {
+          "IS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": -37.85949768113448,
+            "t_stat": -1.245723963556355
+          },
+          "OOS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": -18.896929134849874,
+            "t_stat": -2.297528746680068
+          }
+        },
+        "4x": {
+          "IS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": -47.85949768113449,
+            "t_stat": -2.401235917579117
+          },
+          "OOS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": -28.896929134849884,
+            "t_stat": -3.0635508179465365
+          }
+        }
+      },
+      "baselines": {
+        "IS": {
+          "n_trades": 1216,
+          "always_long_net_bps": -28.7993194429595,
+          "always_long_t": -2.9519424834445367,
+          "strategy_dir_net_bps": 1.3768371046907928,
+          "random_mean_net_bps": -4.932384879866829,
+          "random_lo_bps": -17.417900631817798,
+          "random_hi_bps": 10.248589761629233,
+          "universe_mean_bps": -20.307056688303405
+        },
+        "OOS": {
+          "n_trades": 617,
+          "always_long_net_bps": -15.152336143594207,
+          "always_long_t": -1.6341470815090537,
+          "strategy_dir_net_bps": -13.009222714376783,
+          "random_mean_net_bps": -4.770469090576694,
+          "random_lo_bps": -25.124763772004748,
+          "random_hi_bps": 15.375934589235628,
+          "universe_mean_bps": 0.09600235563498277
+        }
+      }
+    },
+    {
+      "id": "D3",
+      "family": "D3",
+      "horizon": "day",
+      "timeframe": "1d",
+      "name_en": "Washout reversal",
+      "name_de": "Ausverkaufs-Umkehr",
+      "params": {
+        "chg": 2.0,
+        "pos": 0.25,
+        "stop_atr": 1.0,
+        "hold": 1
+      },
+      "note": "",
+      "verdict": "rejected",
+      "strong": false,
+      "IS": {
+        "n_trades": 1010,
+        "n_days": 490,
+        "trades_per_day": 2.061224489795918,
+        "win_rate": 0.44554455445544555,
+        "mean_net_bps": -26.298575034396364,
+        "median_net_bps": -27.102379257464833,
+        "mean_gross_bps": -21.29857503439636,
+        "t_stat": -2.071649929156797,
+        "mean_daily_net_bps": -18.138944868456253,
+        "profit_factor": 0.7540485798692953,
+        "ci_low_bps": -34.623417236031614,
+        "ci_high_bps": -0.173547543096346,
+        "sharpe": -1.4856571583122644,
+        "max_drawdown_pct": 110.92871919452017,
+        "mean_excess_bps": -49.182003023589004,
+        "excess_t_stat": -2.189497825493964,
+        "long": {
+          "n_trades": 605,
+          "mean_net_bps": -22.6011586974071,
+          "win_rate": 0.4512396694214876,
+          "t_stat": -1.4057957236288072
+        },
+        "short": {
+          "n_trades": 405,
+          "mean_net_bps": -31.82187598224452,
+          "win_rate": 0.43703703703703706,
+          "t_stat": -1.268523167857904
+        }
+      },
+      "OOS": {
+        "n_trades": 472,
+        "n_days": 247,
+        "trades_per_day": 1.9109311740890689,
+        "win_rate": 0.5211864406779662,
+        "mean_net_bps": 2.881904784606403,
+        "median_net_bps": 8.261318778596264,
+        "mean_gross_bps": 7.881904784606407,
+        "t_stat": -0.7357613592077397,
+        "mean_daily_net_bps": -8.126198584194816,
+        "profit_factor": 1.0360205640352778,
+        "ci_low_bps": -30.148599217441543,
+        "ci_high_bps": 14.710371171698727,
+        "sharpe": -0.7431710260855185,
+        "max_drawdown_pct": 37.55968998985513,
+        "mean_excess_bps": -6.061962933963812,
+        "excess_t_stat": -1.1170113731927058,
+        "long": {
+          "n_trades": 232,
+          "mean_net_bps": -20.934764184336046,
+          "win_rate": 0.4698275862068966,
+          "t_stat": -1.372271109612651
+        },
+        "short": {
+          "n_trades": 240,
+          "mean_net_bps": 25.904684787917436,
+          "win_rate": 0.5708333333333333,
+          "t_stat": -0.1188126027747988
+        }
+      },
+      "ALL": {
+        "n_trades": 1482,
+        "n_days": 737,
+        "trades_per_day": 2.010854816824966,
+        "win_rate": 0.46963562753036436,
+        "mean_net_bps": -17.004926940894805,
+        "median_net_bps": -15.691559285758157,
+        "mean_gross_bps": -12.004926940894803,
+        "t_stat": -2.143633565447386,
+        "mean_daily_net_bps": -14.783248352564021,
+        "profit_factor": 0.8271024162977096,
+        "ci_low_bps": -27.857525166070516,
+        "ci_high_bps": -1.315621049721509,
+        "sharpe": -1.2534790366513031,
+        "max_drawdown_pct": 134.01366268272298,
+        "mean_excess_bps": -35.44876488438314,
+        "excess_t_stat": -2.4439579670875475,
+        "long": {
+          "n_trades": 837,
+          "mean_net_bps": -22.13926678936351,
+          "win_rate": 0.45639187574671447,
+          "t_stat": -1.9448970991634855
+        },
+        "short": {
+          "n_trades": 645,
+          "mean_net_bps": -10.342225463114492,
+          "win_rate": 0.4868217054263566,
+          "t_stat": -1.131192968556434
+        }
+      },
+      "cost_sensitivity": {
+        "1x": {
+          "IS": {
+            "cost_bps": 5.0,
+            "mean_net_bps": -26.298575034396364,
+            "t_stat": -2.071649929156797
+          },
+          "OOS": {
+            "cost_bps": 5.0,
+            "mean_net_bps": 2.881904784606403,
+            "t_stat": -0.7357613592077397
+          }
+        },
+        "2x": {
+          "IS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": -31.298575034396375,
+            "t_stat": -2.6427002146558753
+          },
+          "OOS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": -2.1180952153936015,
+            "t_stat": -1.1884707974429627
+          }
+        },
+        "4x": {
+          "IS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": -41.29857503439638,
+            "t_stat": -3.7848007856540327
+          },
+          "OOS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": -12.11809521539361,
+            "t_stat": -2.0938896739134094
+          }
+        }
+      },
+      "baselines": {
+        "IS": {
+          "n_trades": 1010,
+          "always_long_net_bps": 12.295936167971439,
+          "always_long_t": -1.195682639652824,
+          "strategy_dir_net_bps": 9.226541254891629,
+          "random_mean_net_bps": -4.783190775092398,
+          "random_lo_bps": -20.946712130498085,
+          "random_hi_bps": 9.238097715410486,
+          "universe_mean_bps": 9.567103256435722
+        },
+        "OOS": {
+          "n_trades": 472,
+          "always_long_net_bps": -29.107907680006054,
+          "always_long_t": -0.9584949391693658,
+          "strategy_dir_net_bps": -3.7645944533930846,
+          "random_mean_net_bps": -4.531739468946571,
+          "random_lo_bps": -25.738610661190556,
+          "random_hi_bps": 16.95183278180951,
+          "universe_mean_bps": -22.64136588728301
+        }
+      }
+    },
+    {
+      "id": "D4",
+      "family": "D4",
+      "horizon": "day",
+      "timeframe": "1d",
+      "name_en": "Trend-day follow-through",
+      "name_de": "Trendtag-Fortsetzung",
+      "params": {
+        "pos": 0.1,
+        "vol": 1.5,
+        "stop_atr": 1.0,
+        "hold": 1
+      },
+      "note": "",
+      "verdict": "rejected",
+      "strong": false,
+      "IS": {
+        "n_trades": 1993,
+        "n_days": 867,
+        "trades_per_day": 2.298731257208766,
+        "win_rate": 0.4586051179126944,
+        "mean_net_bps": -15.835729920213065,
+        "median_net_bps": -13.388920778782394,
+        "mean_gross_bps": -10.835729920213062,
+        "t_stat": -1.0427155593340218,
+        "mean_daily_net_bps": -5.753621343804934,
+        "profit_factor": 0.7987181423820269,
+        "ci_low_bps": -16.255188248104737,
+        "ci_high_bps": 5.193412139302925,
+        "sharpe": -0.5621556445831027,
+        "max_drawdown_pct": 82.3220168315353,
+        "mean_excess_bps": -5.2065482892666815,
+        "excess_t_stat": -1.1163933545505969,
+        "long": {
+          "n_trades": 951,
+          "mean_net_bps": -9.089346127598454,
+          "win_rate": 0.47003154574132494,
+          "t_stat": -1.3520479208166318
+        },
+        "short": {
+          "n_trades": 1042,
+          "mean_net_bps": -21.99293816088149,
+          "win_rate": 0.44817658349328215,
+          "t_stat": -0.33152268157604176
+        }
+      },
+      "OOS": {
+        "n_trades": 757,
+        "n_days": 350,
+        "trades_per_day": 2.162857142857143,
+        "win_rate": 0.46367239101717306,
+        "mean_net_bps": -3.530442439484411,
+        "median_net_bps": -10.799907653265546,
+        "mean_gross_bps": 1.4695575605155937,
+        "t_stat": 0.11624833028349683,
+        "mean_daily_net_bps": 0.9234067477319561,
+        "profit_factor": 0.9488048364306148,
+        "ci_low_bps": -14.462837269342293,
+        "ci_high_bps": 17.355530556345407,
+        "sharpe": 0.09863997917408891,
+        "max_drawdown_pct": 22.148913135360797,
+        "mean_excess_bps": 3.332577532467081,
+        "excess_t_stat": 0.631819248700405,
+        "long": {
+          "n_trades": 376,
+          "mean_net_bps": 8.493090810974753,
+          "win_rate": 0.5132978723404256,
+          "t_stat": 0.256083411558531
+        },
+        "short": {
+          "n_trades": 381,
+          "mean_net_bps": -15.396186539675083,
+          "win_rate": 0.4146981627296588,
+          "t_stat": -0.9513697331478009
+        }
+      },
+      "ALL": {
+        "n_trades": 2750,
+        "n_days": 1217,
+        "trades_per_day": 2.2596548890714874,
+        "win_rate": 0.46,
+        "mean_net_bps": -12.448419875517942,
+        "median_net_bps": -12.082662873727497,
+        "mean_gross_bps": -7.448419875517939,
+        "t_stat": -0.843294365983343,
+        "mean_daily_net_bps": -3.8333585401583345,
+        "profit_factor": 0.8362059098259988,
+        "ci_low_bps": -12.639313187812494,
+        "ci_high_bps": 5.1706744173570724,
+        "sharpe": -0.3837374454413622,
+        "max_drawdown_pct": 82.3220168315353,
+        "mean_excess_bps": -2.85595983579306,
+        "excess_t_stat": -0.6066307725815936,
+        "long": {
+          "n_trades": 1327,
+          "mean_net_bps": -4.10743483226799,
+          "win_rate": 0.4822908816880181,
+          "t_stat": -1.04243333979494
+        },
+        "short": {
+          "n_trades": 1423,
+          "mean_net_bps": -20.226696159701135,
+          "win_rate": 0.4392129304286718,
+          "t_stat": -0.7858364095399933
+        }
+      },
+      "cost_sensitivity": {
+        "1x": {
+          "IS": {
+            "cost_bps": 5.0,
+            "mean_net_bps": -15.835729920213065,
+            "t_stat": -1.0427155593340218
+          },
+          "OOS": {
+            "cost_bps": 5.0,
+            "mean_net_bps": -3.530442439484411,
+            "t_stat": 0.11624833028349683
+          }
+        },
+        "2x": {
+          "IS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": -20.835729920213073,
+            "t_stat": -1.9488540563144847
+          },
+          "OOS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": -8.530442439484414,
+            "t_stat": -0.5132052153453529
+          }
+        },
+        "4x": {
+          "IS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": -30.835729920213076,
+            "t_stat": -3.7611310502754094
+          },
+          "OOS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": -18.53044243948442,
+            "t_stat": -1.7721123066030522
+          }
+        }
+      },
+      "baselines": {
+        "IS": {
+          "n_trades": 1993,
+          "always_long_net_bps": -0.0910768143100695,
+          "always_long_t": -2.216175609426619,
+          "strategy_dir_net_bps": -16.0779737275353,
+          "random_mean_net_bps": -4.633787539927813,
+          "random_lo_bps": -12.705325988485518,
+          "random_hi_bps": 4.266575202263227,
+          "universe_mean_bps": 4.355583410997097
+        },
+        "OOS": {
+          "n_trades": 757,
+          "always_long_net_bps": 3.2490003780392582,
+          "always_long_t": 0.21829776785174906,
+          "strategy_dir_net_bps": -0.287295808615589,
+          "random_mean_net_bps": -5.784954474968356,
+          "random_lo_bps": -18.96315943769033,
+          "random_hi_bps": 6.114254688444224,
+          "universe_mean_bps": 4.946068663067958
+        }
+      }
+    },
+    {
+      "id": "D5",
+      "family": "D5",
+      "horizon": "day",
+      "timeframe": "1d",
+      "name_en": "RSI(2) extreme, day trade",
+      "name_de": "RSI(2)-Extrem, Daytrade",
+      "params": {
+        "lo": 5,
+        "hi": 95,
+        "stop_atr": 1.0,
+        "hold": 1
+      },
+      "note": "",
+      "verdict": "rejected",
+      "strong": false,
+      "IS": {
+        "n_trades": 4644,
+        "n_days": 1291,
+        "trades_per_day": 3.59721146398141,
+        "win_rate": 0.5049526270456502,
+        "mean_net_bps": 2.433917897675653,
+        "median_net_bps": 1.5300600228745953,
+        "mean_gross_bps": 7.4339178976756575,
+        "t_stat": -0.8678759318541908,
+        "mean_daily_net_bps": -3.004803260006999,
+        "profit_factor": 1.0429259145628624,
+        "ci_low_bps": -9.70439522306262,
+        "ci_high_bps": 4.125668324937336,
+        "sharpe": -0.38343768490103897,
+        "max_drawdown_pct": 57.91769854583138,
+        "mean_excess_bps": 1.5287330004303668,
+        "excess_t_stat": -1.329552468854705,
+        "long": {
+          "n_trades": 3133,
+          "mean_net_bps": 0.8158663419832843,
+          "win_rate": 0.5055857006064475,
+          "t_stat": -1.0023658705159293
+        },
+        "short": {
+          "n_trades": 1511,
+          "mean_net_bps": 5.788885153786964,
+          "win_rate": 0.5036399735274653,
+          "t_stat": 0.484873869674798
+        }
+      },
+      "OOS": {
+        "n_trades": 2110,
+        "n_days": 610,
+        "trades_per_day": 3.459016393442623,
+        "win_rate": 0.4848341232227488,
+        "mean_net_bps": -4.23634414095422,
+        "median_net_bps": -5.47021772217104,
+        "mean_gross_bps": 0.7636558590457845,
+        "t_stat": -0.25429349634352694,
+        "mean_daily_net_bps": -1.2431262645973338,
+        "profit_factor": 0.9242008888088499,
+        "ci_low_bps": -10.806959014531552,
+        "ci_high_bps": 8.533005137014513,
+        "sharpe": -0.16344461103813826,
+        "max_drawdown_pct": 31.494555513748367,
+        "mean_excess_bps": -3.5634770001164426,
+        "excess_t_stat": -0.5051403278346501,
+        "long": {
+          "n_trades": 1423,
+          "mean_net_bps": -4.299283793382777,
+          "win_rate": 0.48348559381588196,
+          "t_stat": -0.9022389898452907
+        },
+        "short": {
+          "n_trades": 687,
+          "mean_net_bps": -4.1059756905818245,
+          "win_rate": 0.487627365356623,
+          "t_stat": 0.16806601249403946
+        }
+      },
+      "ALL": {
+        "n_trades": 6754,
+        "n_days": 1901,
+        "trades_per_day": 3.552866912151499,
+        "win_rate": 0.49866745632217946,
+        "mean_net_bps": 0.3500782616808301,
+        "median_net_bps": -0.32760523589691737,
+        "mean_gross_bps": 5.350078261680835,
+        "t_stat": -0.8632854364740282,
+        "mean_daily_net_bps": -2.4395097475399314,
+        "profit_factor": 1.0062018968748883,
+        "ci_low_bps": -7.82296161235524,
+        "ci_high_bps": 3.2187696950891245,
+        "sharpe": -0.31431392826381155,
+        "max_drawdown_pct": 63.892917124806324,
+        "mean_excess_bps": -0.06211140305701518,
+        "excess_t_stat": -1.391172709638853,
+        "long": {
+          "n_trades": 4556,
+          "mean_net_bps": -0.7817760290935165,
+          "win_rate": 0.4986830553116769,
+          "t_stat": -1.343364184605413
+        },
+        "short": {
+          "n_trades": 2198,
+          "mean_net_bps": 2.6961784203559547,
+          "win_rate": 0.4986351228389445,
+          "t_stat": 0.4902256332391472
+        }
+      },
+      "cost_sensitivity": {
+        "1x": {
+          "IS": {
+            "cost_bps": 5.0,
+            "mean_net_bps": 2.433917897675653,
+            "t_stat": -0.8678759318541908
+          },
+          "OOS": {
+            "cost_bps": 5.0,
+            "mean_net_bps": -4.23634414095422,
+            "t_stat": -0.25429349634352694
+          }
+        },
+        "2x": {
+          "IS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": -2.566082102324351,
+            "t_stat": -2.312023612678009
+          },
+          "OOS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": -9.236344140954225,
+            "t_stat": -1.2770918378534957
+          }
+        },
+        "4x": {
+          "IS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": -12.566082102324353,
+            "t_stat": -5.200318974325644
+          },
+          "OOS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": -19.236344140954227,
+            "t_stat": -3.3226885208734314
+          }
+        }
+      },
+      "baselines": {
+        "IS": {
+          "n_trades": 4644,
+          "always_long_net_bps": -4.955750010239378,
+          "always_long_t": -1.7119819766703703,
+          "strategy_dir_net_bps": 2.9143352748257065,
+          "random_mean_net_bps": -4.625552556894077,
+          "random_lo_bps": -9.133853055758262,
+          "random_hi_bps": -0.016628327373690653,
+          "universe_mean_bps": 1.2710448858928611
+        },
+        "OOS": {
+          "n_trades": 2110,
+          "always_long_net_bps": -4.3152916287333225,
+          "always_long_t": -1.3297250018252689,
+          "strategy_dir_net_bps": -4.064242548945646,
+          "random_mean_net_bps": -4.968905552316855,
+          "random_lo_bps": -10.89130229045502,
+          "random_hi_bps": 2.2396753653438095,
+          "universe_mean_bps": -0.8019387722858068
+        }
+      }
+    },
+    {
+      "id": "H1",
+      "family": "H1",
+      "horizon": "day",
+      "timeframe": "60m",
+      "name_en": "Late-day momentum (15:30 hour)",
+      "name_de": "Spätes Momentum (Schlussstunde)",
+      "params": {},
+      "note": "",
+      "verdict": "rejected",
+      "strong": false,
+      "IS": {
+        "n_trades": 22425,
+        "n_days": 345,
+        "trades_per_day": 65.0,
+        "win_rate": 0.4240802675585284,
+        "mean_net_bps": -5.854227228609577,
+        "median_net_bps": -5.263429804496784,
+        "mean_gross_bps": -0.8542272286095756,
+        "t_stat": -7.648913567729255,
+        "mean_daily_net_bps": -5.854227228609576,
+        "profit_factor": 0.6357570518315053,
+        "ci_low_bps": -7.333061056226266,
+        "ci_high_bps": -4.435766394161524,
+        "sharpe": -6.5371804960706745,
+        "max_drawdown_pct": 20.540520206463285,
+        "mean_excess_bps": -5.782832644687216,
+        "excess_t_stat": -19.137459113511245,
+        "long": {
+          "n_trades": 18872,
+          "mean_net_bps": -5.446829265413108,
+          "win_rate": 0.42740568037303944,
+          "t_stat": -5.1655507445924815
+        },
+        "short": {
+          "n_trades": 3553,
+          "mean_net_bps": -8.018149086601076,
+          "win_rate": 0.40641711229946526,
+          "t_stat": -2.5803999220514813
+        }
+      },
+      "OOS": {
+        "n_trades": 9617,
+        "n_days": 148,
+        "trades_per_day": 64.97972972972973,
+        "win_rate": 0.4322553810959759,
+        "mean_net_bps": -5.25306982721816,
+        "median_net_bps": -5.572379079684104,
+        "mean_gross_bps": -0.25306982721815685,
+        "t_stat": -8.001438584482344,
+        "mean_daily_net_bps": -5.252133741371869,
+        "profit_factor": 0.6798913475086604,
+        "ci_low_bps": -6.513957941289177,
+        "ci_high_bps": -3.9593317067329306,
+        "sharpe": -10.440889243916814,
+        "max_drawdown_pct": 7.741296490767224,
+        "mean_excess_bps": -5.084317843064058,
+        "excess_t_stat": -9.544889377189877,
+        "long": {
+          "n_trades": 5953,
+          "mean_net_bps": -6.317065152326605,
+          "win_rate": 0.41726860406517724,
+          "t_stat": -6.497722555267804
+        },
+        "short": {
+          "n_trades": 3664,
+          "mean_net_bps": -3.5243678156541374,
+          "win_rate": 0.4566048034934498,
+          "t_stat": -2.5551506389973926
+        }
+      },
+      "ALL": {
+        "n_trades": 32042,
+        "n_days": 493,
+        "trades_per_day": 64.99391480730223,
+        "win_rate": 0.4265339242244554,
+        "mean_net_bps": -5.673797457397379,
+        "median_net_bps": -5.36675962743149,
+        "mean_gross_bps": -0.6737974573973768,
+        "t_stat": -9.945517049279793,
+        "mean_daily_net_bps": -5.673477053941867,
+        "profit_factor": 0.6491971143690705,
+        "ci_low_bps": -6.806866982063607,
+        "ci_high_bps": -4.597404013548026,
+        "sharpe": -7.1105660834170274,
+        "max_drawdown_pct": 28.11357628419882,
+        "mean_excess_bps": -5.5731822843099,
+        "excess_t_stat": -21.014498008064734,
+        "long": {
+          "n_trades": 24825,
+          "mean_net_bps": -5.655510604176292,
+          "win_rate": 0.42497482376636453,
+          "t_stat": -7.233403064168093
+        },
+        "short": {
+          "n_trades": 7217,
+          "mean_net_bps": -5.736700482368071,
+          "win_rate": 0.4318969100734377,
+          "t_stat": -3.2239227845394343
+        }
+      },
+      "cost_sensitivity": {
+        "1x": {
+          "IS": {
+            "cost_bps": 5.0,
+            "mean_net_bps": -5.854227228609577,
+            "t_stat": -7.648913567729255
+          },
+          "OOS": {
+            "cost_bps": 5.0,
+            "mean_net_bps": -5.25306982721816,
+            "t_stat": -8.001438584482344
+          }
+        },
+        "2x": {
+          "IS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": -10.85422722860958,
+            "t_stat": -14.18172590062698
+          },
+          "OOS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": -10.253069827218159,
+            "t_stat": -15.618760399284751
+          }
+        },
+        "4x": {
+          "IS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": -20.854227228609577,
+            "t_stat": -27.247350566422423
+          },
+          "OOS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": -20.25306982721816,
+            "t_stat": -30.853404028889567
+          }
+        }
+      },
+      "baselines": {
+        "IS": {
+          "n_trades": 22425,
+          "always_long_net_bps": -4.897840722059422,
+          "always_long_t": -4.354692900481154,
+          "strategy_dir_net_bps": -5.854227228609576,
+          "random_mean_net_bps": -5.019723796000047,
+          "random_lo_bps": -5.40992665738603,
+          "random_hi_bps": -4.518557154095451,
+          "universe_mean_bps": 0.10215927794057875
+        },
+        "OOS": {
+          "n_trades": 9617,
+          "always_long_net_bps": -6.37747792193444,
+          "always_long_t": -6.341406453781253,
+          "strategy_dir_net_bps": -5.253069827218157,
+          "random_mean_net_bps": -5.022764632658364,
+          "random_lo_bps": -5.693479251878906,
+          "random_hi_bps": -4.4071512261378025,
+          "universe_mean_bps": -1.366071617276712
+        }
+      }
+    },
+    {
+      "id": "H1b",
+      "family": "H1b",
+      "horizon": "day",
+      "timeframe": "60m",
+      "name_en": "First-hour momentum, held to the close",
+      "name_de": "Momentum der ersten Stunde bis Handelsschluss",
+      "params": {},
+      "note": "",
+      "verdict": "rejected",
+      "strong": false,
+      "IS": {
+        "n_trades": 22425,
+        "n_days": 345,
+        "trades_per_day": 65.0,
+        "win_rate": 0.48454849498327757,
+        "mean_net_bps": -4.848452480379934,
+        "median_net_bps": -2.8709799216836096,
+        "mean_gross_bps": 0.15154751962007101,
+        "t_stat": -1.4515500298521455,
+        "mean_daily_net_bps": -4.848452480379932,
+        "profit_factor": 0.8848471558269506,
+        "ci_low_bps": -11.086413218859883,
+        "ci_high_bps": 1.9374637147889944,
+        "sharpe": -1.2405741626176172,
+        "max_drawdown_pct": 18.455784043773416,
+        "mean_excess_bps": -5.95637681771389,
+        "excess_t_stat": -6.253998392682691,
+        "long": {
+          "n_trades": 19314,
+          "mean_net_bps": -3.3698900447981837,
+          "win_rate": 0.49088743916330124,
+          "t_stat": -0.8777639985283825
+        },
+        "short": {
+          "n_trades": 3111,
+          "mean_net_bps": -14.027801525968464,
+          "win_rate": 0.4451944712311154,
+          "t_stat": -1.5664286368305167
+        }
+      },
+      "OOS": {
+        "n_trades": 9618,
+        "n_days": 148,
+        "trades_per_day": 64.98648648648648,
+        "win_rate": 0.45945102932002496,
+        "mean_net_bps": -8.708788822049932,
+        "median_net_bps": -8.56643745072105,
+        "mean_gross_bps": -3.7087888220499265,
+        "t_stat": -3.9935137742205833,
+        "mean_daily_net_bps": -8.704846374826527,
+        "profit_factor": 0.8023532879908112,
+        "ci_low_bps": -12.91350506599193,
+        "ci_high_bps": -4.542261111330627,
+        "sharpe": -5.2110423107610275,
+        "max_drawdown_pct": 13.27031434332851,
+        "mean_excess_bps": -6.2764539516130124,
+        "excess_t_stat": -3.700272162078987,
+        "long": {
+          "n_trades": 6223,
+          "mean_net_bps": -11.317524991984913,
+          "win_rate": 0.45042583962718946,
+          "t_stat": -2.8756046185715967
+        },
+        "short": {
+          "n_trades": 3395,
+          "mean_net_bps": -3.9270023167464276,
+          "win_rate": 0.4759941089837997,
+          "t_stat": -0.7248951409025854
+        }
+      },
+      "ALL": {
+        "n_trades": 32043,
+        "n_days": 493,
+        "trades_per_day": 64.99594320486815,
+        "win_rate": 0.4770152607433761,
+        "mean_net_bps": -6.00716779836458,
+        "median_net_bps": -4.446869959549566,
+        "mean_gross_bps": -1.0071677983645757,
+        "t_stat": -2.4744877204153504,
+        "mean_daily_net_bps": -6.0061528787127845,
+        "profit_factor": 0.8592911423090097,
+        "ci_low_bps": -10.555067843752449,
+        "ci_high_bps": -1.1548489561286537,
+        "sharpe": -1.7691396406475872,
+        "max_drawdown_pct": 30.861441756718726,
+        "mean_excess_bps": -6.052450901721062,
+        "excess_t_stat": -7.224248909040646,
+        "long": {
+          "n_trades": 25537,
+          "mean_net_bps": -5.306614494668685,
+          "win_rate": 0.48102752868387044,
+          "t_stat": -1.901200921767345
+        },
+        "short": {
+          "n_trades": 6506,
+          "mean_net_bps": -8.756941809505381,
+          "win_rate": 0.46126652320934525,
+          "t_stat": -1.7205244373568045
+        }
+      },
+      "cost_sensitivity": {
+        "1x": {
+          "IS": {
+            "cost_bps": 5.0,
+            "mean_net_bps": -4.848452480379934,
+            "t_stat": -1.4515500298521455
+          },
+          "OOS": {
+            "cost_bps": 5.0,
+            "mean_net_bps": -8.708788822049932,
+            "t_stat": -3.9935137742205833
+          }
+        },
+        "2x": {
+          "IS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": -9.848452480379937,
+            "t_stat": -2.94847099146421
+          },
+          "OOS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": -13.708788822049936,
+            "t_stat": -6.287358836075664
+          }
+        },
+        "4x": {
+          "IS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": -19.848452480379937,
+            "t_stat": -5.9423129146883396
+          },
+          "OOS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": -23.708788822049932,
+            "t_stat": -10.875048959785818
+          }
+        }
+      },
+      "baselines": {
+        "IS": {
+          "n_trades": 22425,
+          "always_long_net_bps": -2.3436149733754363,
+          "always_long_t": -0.5833199657676281,
+          "strategy_dir_net_bps": -4.848452480379929,
+          "random_mean_net_bps": -4.9432001449032725,
+          "random_lo_bps": -6.291275486166074,
+          "random_hi_bps": -3.552265155480199,
+          "universe_mean_bps": 2.6563850266245637
+        },
+        "OOS": {
+          "n_trades": 9618,
+          "always_long_net_bps": -9.46629082551133,
+          "always_long_t": -2.7946640202818305,
+          "strategy_dir_net_bps": -8.708788822049927,
+          "random_mean_net_bps": -5.023642676909225,
+          "random_lo_bps": -7.231151282239899,
+          "random_hi_bps": -2.844747534853563,
+          "universe_mean_bps": -4.456904600542316
+        }
+      }
+    },
+    {
+      "id": "H2",
+      "family": "H2",
+      "horizon": "day",
+      "timeframe": "60m",
+      "name_en": "First-hour breakout",
+      "name_de": "Ausbruch aus der ersten Handelsstunde",
+      "params": {},
+      "note": "",
+      "verdict": "rejected",
+      "strong": false,
+      "IS": {
+        "n_trades": 15042,
+        "n_days": 345,
+        "trades_per_day": 43.6,
+        "win_rate": 0.43551389442893235,
+        "mean_net_bps": -4.3939049217492645,
+        "median_net_bps": -8.623089987899176,
+        "mean_gross_bps": 0.6060950782507404,
+        "t_stat": -3.383283147408439,
+        "mean_daily_net_bps": -6.406910338928609,
+        "profit_factor": 0.8533912479318169,
+        "ci_low_bps": -9.922824956465929,
+        "ci_high_bps": -2.6750838814571907,
+        "sharpe": -2.891539093504099,
+        "max_drawdown_pct": 22.591938465873458,
+        "mean_excess_bps": -6.261038620093377,
+        "excess_t_stat": -8.991599823614072,
+        "long": {
+          "n_trades": 7806,
+          "mean_net_bps": -3.7047595933163735,
+          "win_rate": 0.4467076607737638,
+          "t_stat": -5.59429078931356
+        },
+        "short": {
+          "n_trades": 7236,
+          "mean_net_bps": -5.137336159138312,
+          "win_rate": 0.4234383637368712,
+          "t_stat": -5.426523287351229
+        }
+      },
+      "OOS": {
+        "n_trades": 6061,
+        "n_days": 148,
+        "trades_per_day": 40.9527027027027,
+        "win_rate": 0.43507672001319914,
+        "mean_net_bps": -8.344292643063122,
+        "median_net_bps": -9.119922085525918,
+        "mean_gross_bps": -3.344292643063118,
+        "t_stat": -5.08598105804935,
+        "mean_daily_net_bps": -9.362264710061863,
+        "profit_factor": 0.7352946996351972,
+        "ci_low_bps": -12.932231385099763,
+        "ci_high_bps": -5.675253401308741,
+        "sharpe": -6.636577205845986,
+        "max_drawdown_pct": 14.511392744661414,
+        "mean_excess_bps": -9.600905926899737,
+        "excess_t_stat": -6.954469511981911,
+        "long": {
+          "n_trades": 3041,
+          "mean_net_bps": -9.914196528625732,
+          "win_rate": 0.4189411377836238,
+          "t_stat": -5.637912837579323
+        },
+        "short": {
+          "n_trades": 3020,
+          "mean_net_bps": -6.763472207302893,
+          "win_rate": 0.4513245033112583,
+          "t_stat": -3.807156892789905
+        }
+      },
+      "ALL": {
+        "n_trades": 21103,
+        "n_days": 493,
+        "trades_per_day": 42.8052738336714,
+        "win_rate": 0.43538833341231103,
+        "mean_net_bps": -5.5284971588190315,
+        "median_net_bps": -8.801644002863203,
+        "mean_gross_bps": -0.5284971588190268,
+        "t_stat": -5.079222013725097,
+        "mean_daily_net_bps": -7.294116113629871,
+        "profit_factor": 0.8182385294975195,
+        "ci_low_bps": -9.895600478431485,
+        "ci_high_bps": -4.404949799279268,
+        "sharpe": -3.631399313075851,
+        "max_drawdown_pct": 36.42992468917972,
+        "mean_excess_bps": -7.220283075694635,
+        "excess_t_stat": -11.327344654512476,
+        "long": {
+          "n_trades": 10847,
+          "mean_net_bps": -5.445600168616066,
+          "win_rate": 0.4389232045726929,
+          "t_stat": -7.444203889276044
+        },
+        "short": {
+          "n_trades": 10256,
+          "mean_net_bps": -5.616171071916884,
+          "win_rate": 0.43164976599063964,
+          "t_stat": -6.551417229153636
+        }
+      },
+      "cost_sensitivity": {
+        "1x": {
+          "IS": {
+            "cost_bps": 5.0,
+            "mean_net_bps": -4.3939049217492645,
+            "t_stat": -3.383283147408439
+          },
+          "OOS": {
+            "cost_bps": 5.0,
+            "mean_net_bps": -8.344292643063122,
+            "t_stat": -5.08598105804935
+          }
+        },
+        "2x": {
+          "IS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": -9.393904921749266,
+            "t_stat": -6.023622225397007
+          },
+          "OOS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": -13.344292643063124,
+            "t_stat": -7.802194076777242
+          }
+        },
+        "4x": {
+          "IS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": -19.393904921749268,
+            "t_stat": -11.304300381374148
+          },
+          "OOS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": -23.344292643063124,
+            "t_stat": -13.234620114233026
+          }
+        }
+      },
+      "baselines": {
+        "IS": {
+          "n_trades": 15042,
+          "always_long_net_bps": -4.29711467358209,
+          "always_long_t": -1.7342762206962992,
+          "strategy_dir_net_bps": -4.285126756184569,
+          "random_mean_net_bps": -4.9614460186699105,
+          "random_lo_bps": -6.057316600955838,
+          "random_hi_bps": -3.6381559612866403,
+          "universe_mean_bps": 0.5155837994847255
+        },
+        "OOS": {
+          "n_trades": 6061,
+          "always_long_net_bps": -6.745839262395976,
+          "always_long_t": -3.312511793432406,
+          "strategy_dir_net_bps": -8.020619737793973,
+          "random_mean_net_bps": -5.085211260509269,
+          "random_lo_bps": -6.791312052292191,
+          "random_hi_bps": -3.3135620197552114,
+          "universe_mean_bps": -2.7397808708313924
+        }
+      }
+    },
+    {
+      "id": "H3",
+      "family": "H3",
+      "horizon": "day",
+      "timeframe": "60m",
+      "name_en": "Morning fade",
+      "name_de": "Morgen-Fade",
+      "params": {
+        "mult": 1.0
+      },
+      "note": "",
+      "verdict": "rejected",
+      "strong": false,
+      "IS": {
+        "n_trades": 626,
+        "n_days": 222,
+        "trades_per_day": 2.81981981981982,
+        "win_rate": 0.1597444089456869,
+        "mean_net_bps": -7.697065589549625,
+        "median_net_bps": -16.355473767445947,
+        "mean_gross_bps": -2.6970655895496205,
+        "t_stat": -1.7733928467396909,
+        "mean_daily_net_bps": -8.195942325764403,
+        "profit_factor": 0.7312002490263799,
+        "ci_low_bps": -17.065373524712456,
+        "ci_high_bps": 1.1715893829927433,
+        "sharpe": -1.8894209890465388,
+        "max_drawdown_pct": 25.45536191412971,
+        "mean_excess_bps": -9.359684977432313,
+        "excess_t_stat": -1.9867680458285584,
+        "long": {
+          "n_trades": 342,
+          "mean_net_bps": -7.3253130076930155,
+          "win_rate": 0.16374269005847952,
+          "t_stat": -1.478912368479609
+        },
+        "short": {
+          "n_trades": 284,
+          "mean_net_bps": -8.144739473334697,
+          "win_rate": 0.15492957746478872,
+          "t_stat": -1.5857874208553822
+        }
+      },
+      "OOS": {
+        "n_trades": 302,
+        "n_days": 109,
+        "trades_per_day": 2.770642201834862,
+        "win_rate": 0.2119205298013245,
+        "mean_net_bps": -1.558151307965005,
+        "median_net_bps": -15.66460306756334,
+        "mean_gross_bps": 3.4418486920349998,
+        "t_stat": -1.6239527752053409,
+        "mean_daily_net_bps": -8.472737104853586,
+        "profit_factor": 0.942881842278321,
+        "ci_low_bps": -18.5687130410445,
+        "ci_high_bps": 1.1879224237173287,
+        "sharpe": -2.4692235886596743,
+        "max_drawdown_pct": 10.699436433820564,
+        "mean_excess_bps": -2.31239329715685,
+        "excess_t_stat": -1.728091854941901,
+        "long": {
+          "n_trades": 142,
+          "mean_net_bps": -9.970210460854094,
+          "win_rate": 0.19718309859154928,
+          "t_stat": -2.0485737596504174
+        },
+        "short": {
+          "n_trades": 160,
+          "mean_net_bps": 5.907551190224063,
+          "win_rate": 0.225,
+          "t_stat": -0.31350058157864946
+        }
+      },
+      "ALL": {
+        "n_trades": 928,
+        "n_days": 331,
+        "trades_per_day": 2.8036253776435047,
+        "win_rate": 0.17672413793103448,
+        "mean_net_bps": -5.699272364292561,
+        "median_net_bps": -16.146105646597793,
+        "mean_gross_bps": -0.6992723642925565,
+        "t_stat": -2.3413679005596,
+        "mean_daily_net_bps": -8.287092268123073,
+        "profit_factor": 0.7978538436077607,
+        "ci_low_bps": -14.932905464232153,
+        "ci_high_bps": -1.1026961917944815,
+        "sharpe": -2.04294151320773,
+        "max_drawdown_pct": 32.39366439447628,
+        "mean_excess_bps": -7.06627755561853,
+        "excess_t_stat": -2.5812070287656095,
+        "long": {
+          "n_trades": 484,
+          "mean_net_bps": -8.101295318331182,
+          "win_rate": 0.17355371900826447,
+          "t_stat": -2.3513713817635535
+        },
+        "short": {
+          "n_trades": 444,
+          "mean_net_bps": -3.080850945926135,
+          "win_rate": 0.18018018018018017,
+          "t_stat": -1.4918649671080793
+        }
+      },
+      "cost_sensitivity": {
+        "1x": {
+          "IS": {
+            "cost_bps": 5.0,
+            "mean_net_bps": -7.697065589549625,
+            "t_stat": -1.7733928467396909
+          },
+          "OOS": {
+            "cost_bps": 5.0,
+            "mean_net_bps": -1.558151307965005,
+            "t_stat": -1.6239527752053409
+          }
+        },
+        "2x": {
+          "IS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": -12.697065589549625,
+            "t_stat": -2.855265300359168
+          },
+          "OOS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": -6.558151307965006,
+            "t_stat": -2.582292893108364
+          }
+        },
+        "4x": {
+          "IS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": -22.697065589549624,
+            "t_stat": -5.019010207598122
+          },
+          "OOS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": -16.55815130796501,
+            "t_stat": -4.49897312891441
+          }
+        }
+      },
+      "baselines": {
+        "IS": {
+          "n_trades": 626,
+          "always_long_net_bps": -1.6231931992734354,
+          "always_long_t": -0.6213065970635696,
+          "strategy_dir_net_bps": -4.504531759049183,
+          "random_mean_net_bps": -5.253457086409321,
+          "random_lo_bps": -14.295643124984093,
+          "random_hi_bps": 2.1947097728052922,
+          "universe_mean_bps": 3.8633765153937363
+        },
+        "OOS": {
+          "n_trades": 302,
+          "always_long_net_bps": -21.61581136640089,
+          "always_long_t": -3.5834380040609917,
+          "strategy_dir_net_bps": 12.250863076088796,
+          "random_mean_net_bps": -5.424839854066295,
+          "random_lo_bps": -16.73422466713897,
+          "random_hi_bps": 5.362794848980026,
+          "universe_mean_bps": -4.819490572707036
+        }
+      }
+    },
+    {
+      "id": "M1",
+      "family": "M1",
+      "horizon": "day",
+      "timeframe": "5m",
+      "name_en": "Opening-range breakout (5m)",
+      "name_de": "Opening-Range-Ausbruch (5 Min.)",
+      "params": {},
+      "note": "",
+      "verdict": "rejected",
+      "strong": false,
+      "IS": {
+        "n_trades": 1428,
+        "n_days": 30,
+        "trades_per_day": 47.6,
+        "win_rate": 0.41386554621848737,
+        "mean_net_bps": -5.673924399997955,
+        "median_net_bps": -25.14447259793828,
+        "mean_gross_bps": -0.6739243999979507,
+        "t_stat": -1.3803026429893395,
+        "mean_daily_net_bps": -5.6832484057399215,
+        "profit_factor": 0.8429489906533625,
+        "ci_low_bps": -13.594369702740956,
+        "ci_high_bps": 2.9534512300842755,
+        "sharpe": -4.000497124663907,
+        "max_drawdown_pct": 2.449403784038238,
+        "mean_excess_bps": -2.5460472605978497,
+        "excess_t_stat": -0.817031367116937,
+        "long": {
+          "n_trades": 680,
+          "mean_net_bps": -4.883259247501471,
+          "win_rate": 0.4147058823529412,
+          "t_stat": -0.8583061657733211
+        },
+        "short": {
+          "n_trades": 748,
+          "mean_net_bps": -6.392710902267487,
+          "win_rate": 0.41310160427807485,
+          "t_stat": -0.9436192201355724
+        }
+      },
+      "OOS": {
+        "n_trades": 624,
+        "n_days": 13,
+        "trades_per_day": 48.0,
+        "win_rate": 0.4519230769230769,
+        "mean_net_bps": 0.0685869474945854,
+        "median_net_bps": -24.347949623223503,
+        "mean_gross_bps": 5.06858694749459,
+        "t_stat": -0.29702157891011655,
+        "mean_daily_net_bps": -3.0071009433090548,
+        "profit_factor": 1.001619849480403,
+        "ci_low_bps": -20.816057761923844,
+        "ci_high_bps": 16.915089246163305,
+        "sharpe": -1.307725512872847,
+        "max_drawdown_pct": 1.0095515707524296,
+        "mean_excess_bps": -10.526800695665596,
+        "excess_t_stat": -2.019659955444927,
+        "long": {
+          "n_trades": 359,
+          "mean_net_bps": -4.346569222494684,
+          "win_rate": 0.46518105849582175,
+          "t_stat": -0.8469288682389008
+        },
+        "short": {
+          "n_trades": 265,
+          "mean_net_bps": 6.049873985329104,
+          "win_rate": 0.4339622641509434,
+          "t_stat": -0.15365185598663475
+        }
+      },
+      "ALL": {
+        "n_trades": 2052,
+        "n_days": 43,
+        "trades_per_day": 47.72093023255814,
+        "win_rate": 0.42543859649122806,
+        "mean_net_bps": -3.9276636393569486,
+        "median_net_bps": -25.02312424384256,
+        "mean_gross_bps": 1.0723363606430558,
+        "t_stat": -1.1802063009958457,
+        "mean_daily_net_bps": -4.8741805682608215,
+        "profit_factor": 0.8966878407984314,
+        "ci_low_bps": -12.31318804056837,
+        "ci_high_bps": 3.4058501651244066,
+        "sharpe": -2.8570903317942955,
+        "max_drawdown_pct": 2.654552819274492,
+        "mean_excess_bps": -4.97294304202196,
+        "excess_t_stat": -1.8172974294787836,
+        "long": {
+          "n_trades": 1039,
+          "mean_net_bps": -4.6978196719697705,
+          "win_rate": 0.43214629451395575,
+          "t_stat": -1.2149407095873155
+        },
+        "short": {
+          "n_trades": 1013,
+          "mean_net_bps": -3.137740521997894,
+          "win_rate": 0.4185587364264561,
+          "t_stat": -0.6615592697308434
+        }
+      },
+      "cost_sensitivity": {
+        "1x": {
+          "IS": {
+            "cost_bps": 5.0,
+            "mean_net_bps": -5.673924399997955,
+            "t_stat": -1.3803026429893395
+          },
+          "OOS": {
+            "cost_bps": 5.0,
+            "mean_net_bps": 0.0685869474945854,
+            "t_stat": -0.29702157891011655
+          }
+        },
+        "2x": {
+          "IS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": -10.673924399997958,
+            "t_stat": -2.594663290673921
+          },
+          "OOS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": -4.931413052505419,
+            "t_stat": -0.7908885699251736
+          }
+        },
+        "4x": {
+          "IS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": -20.673924399997958,
+            "t_stat": -5.0233845860430835
+          },
+          "OOS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": -14.931413052505416,
+            "t_stat": -1.7786225519552878
+          }
+        }
+      },
+      "baselines": {
+        "IS": {
+          "n_trades": 1428,
+          "always_long_net_bps": -3.9244611266333416,
+          "always_long_t": -0.7540194303674395,
+          "strategy_dir_net_bps": -5.500348305486939,
+          "random_mean_net_bps": -5.053782048784842,
+          "random_lo_bps": -8.874754091600764,
+          "random_hi_bps": -0.8965195008902783,
+          "universe_mean_bps": 3.4552145825821765
+        },
+        "OOS": {
+          "n_trades": 624,
+          "always_long_net_bps": -9.298178735300507,
+          "always_long_t": -0.48363962133803473,
+          "strategy_dir_net_bps": -0.46278788915029406,
+          "random_mean_net_bps": -5.311886942988161,
+          "random_lo_bps": -12.762597254018644,
+          "random_hi_bps": 2.66161800052751,
+          "universe_mean_bps": -4.77717025784041
+        }
+      }
+    },
+    {
+      "id": "M2a",
+      "family": "M2a",
+      "horizon": "day",
+      "timeframe": "5m",
+      "name_en": "Gap fade, entry 09:35 (5m)",
+      "name_de": "Gap-Fade, Einstieg 09:35 (5 Min.)",
+      "params": {
+        "lo": 0.3,
+        "hi": 1.5,
+        "stop_atr": 1.0
+      },
+      "note": "",
+      "verdict": "rejected",
+      "strong": false,
+      "IS": {
+        "n_trades": 364,
+        "n_days": 30,
+        "trades_per_day": 12.133333333333333,
+        "win_rate": 0.5192307692307693,
+        "mean_net_bps": 0.5554806341133255,
+        "median_net_bps": 3.87418007159968,
+        "mean_gross_bps": 5.55548063411333,
+        "t_stat": 0.004035770650191725,
+        "mean_daily_net_bps": 0.045802883956118395,
+        "profit_factor": 1.0109011856436116,
+        "ci_low_bps": -22.851276234651806,
+        "ci_high_bps": 21.58824801475888,
+        "sharpe": 0.011696774590628439,
+        "max_drawdown_pct": 2.124252014489389,
+        "mean_excess_bps": -0.039284267527188596,
+        "excess_t_stat": 0.00641465332948564,
+        "long": {
+          "n_trades": 157,
+          "mean_net_bps": 11.525326490102035,
+          "win_rate": 0.5796178343949044,
+          "t_stat": 0.5135555597416279
+        },
+        "short": {
+          "n_trades": 207,
+          "mean_net_bps": -7.764644000622073,
+          "win_rate": 0.47342995169082125,
+          "t_stat": -0.37903976691941016
+        }
+      },
+      "OOS": {
+        "n_trades": 255,
+        "n_days": 13,
+        "trades_per_day": 19.615384615384617,
+        "win_rate": 0.5098039215686274,
+        "mean_net_bps": -7.772885375265491,
+        "median_net_bps": 6.4075370686217425,
+        "mean_gross_bps": -2.772885375265487,
+        "t_stat": -0.6676539263657834,
+        "mean_daily_net_bps": -10.037013376480445,
+        "profit_factor": 0.8774113208222778,
+        "ci_low_bps": -38.49897414931705,
+        "ci_high_bps": 18.07220586433744,
+        "sharpe": -2.939544246185832,
+        "max_drawdown_pct": 2.363569673375767,
+        "mean_excess_bps": -11.122758235307902,
+        "excess_t_stat": -0.9358785671114923,
+        "long": {
+          "n_trades": 148,
+          "mean_net_bps": 12.534008756475792,
+          "win_rate": 0.6013513513513513,
+          "t_stat": -0.16449984941787568
+        },
+        "short": {
+          "n_trades": 107,
+          "mean_net_bps": -35.8609258565525,
+          "win_rate": 0.38317757009345793,
+          "t_stat": -0.3237972566697414
+        }
+      },
+      "ALL": {
+        "n_trades": 619,
+        "n_days": 43,
+        "trades_per_day": 14.395348837209303,
+        "win_rate": 0.5153473344103393,
+        "mean_net_bps": -2.8754294343706785,
+        "median_net_bps": 4.342933788138996,
+        "mean_gross_bps": 2.1245705656293263,
+        "t_stat": -0.3314060277476883,
+        "mean_daily_net_bps": -3.0024904040828444,
+        "profit_factor": 0.9487307916630479,
+        "ci_low_bps": -20.942075196787485,
+        "ci_high_bps": 14.314264926297609,
+        "sharpe": -0.8022808868054038,
+        "max_drawdown_pct": 4.467607838094073,
+        "mean_excess_bps": -4.605174189633944,
+        "excess_t_stat": -0.37705606302455663,
+        "long": {
+          "n_trades": 305,
+          "mean_net_bps": 12.014785425916186,
+          "win_rate": 0.5901639344262295,
+          "t_stat": 0.38732823473835887
+        },
+        "short": {
+          "n_trades": 314,
+          "mean_net_bps": -17.33885469675123,
+          "win_rate": 0.4426751592356688,
+          "t_stat": -0.5058295351343678
+        }
+      },
+      "cost_sensitivity": {
+        "1x": {
+          "IS": {
+            "cost_bps": 5.0,
+            "mean_net_bps": 0.5554806341133255,
+            "t_stat": 0.004035770650191725
+          },
+          "OOS": {
+            "cost_bps": 5.0,
+            "mean_net_bps": -7.772885375265491,
+            "t_stat": -0.6676539263657834
+          }
+        },
+        "2x": {
+          "IS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": -4.444519365886679,
+            "t_stat": -0.4365228035717078
+          },
+          "OOS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": -12.772885375265497,
+            "t_stat": -1.0002498397727961
+          }
+        },
+        "4x": {
+          "IS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": -14.44451936588668,
+            "t_stat": -1.317639952015506
+          },
+          "OOS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": -22.772885375265496,
+            "t_stat": -1.6654416665868215
+          }
+        }
+      },
+      "baselines": {
+        "IS": {
+          "n_trades": 364,
+          "always_long_net_bps": 3.5511301722466135,
+          "always_long_t": 0.18161762736346354,
+          "strategy_dir_net_bps": 0.55831911991115,
+          "random_mean_net_bps": -4.457994137687188,
+          "random_lo_bps": -18.269725939229893,
+          "random_hi_bps": 9.947531744026437,
+          "universe_mean_bps": 1.1411362037438681
+        },
+        "OOS": {
+          "n_trades": 255,
+          "always_long_net_bps": 18.005325255771734,
+          "always_long_t": 0.11949366431499857,
+          "strategy_dir_net_bps": -7.876839595254053,
+          "random_mean_net_bps": -5.60313312771481,
+          "random_lo_bps": -21.10230366847,
+          "random_hi_bps": 9.568411872540043,
+          "universe_mean_bps": 18.142055215764056
+        }
+      }
+    },
+    {
+      "id": "M2b",
+      "family": "M2b",
+      "horizon": "day",
+      "timeframe": "5m",
+      "name_en": "Gap continuation, entry 09:35 (5m)",
+      "name_de": "Gap-Fortsetzung, Einstieg 09:35 (5 Min.)",
+      "params": {
+        "min": 1.5,
+        "stop_atr": 1.0
+      },
+      "note": "",
+      "verdict": "rejected",
+      "strong": false,
+      "IS": {
+        "n_trades": 18,
+        "n_days": 11,
+        "trades_per_day": 1.6363636363636365,
+        "win_rate": 0.4444444444444444,
+        "mean_net_bps": -53.65238157679118,
+        "median_net_bps": -92.52777398225443,
+        "mean_gross_bps": -48.65238157679117,
+        "t_stat": -1.4085588918053125,
+        "mean_daily_net_bps": -68.47751955604674,
+        "profit_factor": 0.4968826735407935,
+        "ci_low_bps": -156.16527465412008,
+        "ci_high_bps": 25.178036763621545,
+        "sharpe": -6.741847698074253,
+        "max_drawdown_pct": 7.654585095002576,
+        "mean_excess_bps": -55.18327679959519,
+        "excess_t_stat": -1.5055736048375687,
+        "long": {
+          "n_trades": 9,
+          "mean_net_bps": -69.34187440746605,
+          "win_rate": 0.4444444444444444,
+          "t_stat": -0.785609763290704
+        },
+        "short": {
+          "n_trades": 9,
+          "mean_net_bps": -37.9628887461163,
+          "win_rate": 0.4444444444444444,
+          "t_stat": -0.5082675953438699
+        }
+      },
+      "OOS": {
+        "n_trades": 15,
+        "n_days": 7,
+        "trades_per_day": 2.142857142857143,
+        "win_rate": 0.4,
+        "mean_net_bps": -85.42459317905141,
+        "median_net_bps": -68.84067086498524,
+        "mean_gross_bps": -80.42459317905141,
+        "t_stat": -2.4841988108920257,
+        "mean_daily_net_bps": -183.3639424477624,
+        "profit_factor": 0.3247391837530522,
+        "ci_low_bps": -336.5831675125769,
+        "ci_high_bps": -63.03739083094237,
+        "sharpe": -14.905192865352154,
+        "max_drawdown_pct": 10.295966275951269,
+        "mean_excess_bps": -108.70193607256368,
+        "excess_t_stat": -2.4449886372895215,
+        "long": {
+          "n_trades": 6,
+          "mean_net_bps": 41.93019335070418,
+          "win_rate": 0.6666666666666666,
+          "t_stat": 0.0
+        },
+        "short": {
+          "n_trades": 9,
+          "mean_net_bps": -170.32778419888848,
+          "win_rate": 0.2222222222222222,
+          "t_stat": -2.9380421501283425
+        }
+      },
+      "ALL": {
+        "n_trades": 33,
+        "n_days": 18,
+        "trades_per_day": 1.8333333333333333,
+        "win_rate": 0.42424242424242425,
+        "mean_net_bps": -68.09429594145492,
+        "median_net_bps": -73.0582018724807,
+        "mean_gross_bps": -63.09429594145492,
+        "t_stat": -2.680600971447427,
+        "mean_daily_net_bps": -113.15557290282503,
+        "profit_factor": 0.41130536211395985,
+        "ci_low_bps": -197.51021186978875,
+        "ci_high_bps": -35.90862296279172,
+        "sharpe": -10.02989042580967,
+        "max_drawdown_pct": 20.490061066345937,
+        "mean_excess_bps": -79.50994010548997,
+        "excess_t_stat": -2.7423047741478555,
+        "long": {
+          "n_trades": 15,
+          "mean_net_bps": -24.833047304197958,
+          "win_rate": 0.5333333333333333,
+          "t_stat": -0.6714803758641138
+        },
+        "short": {
+          "n_trades": 18,
+          "mean_net_bps": -104.14533647250238,
+          "win_rate": 0.3333333333333333,
+          "t_stat": -2.068403067710123
+        }
+      },
+      "cost_sensitivity": {
+        "1x": {
+          "IS": {
+            "cost_bps": 5.0,
+            "mean_net_bps": -53.65238157679118,
+            "t_stat": -1.4085588918053125
+          },
+          "OOS": {
+            "cost_bps": 5.0,
+            "mean_net_bps": -85.42459317905141,
+            "t_stat": -2.4841988108920257
+          }
+        },
+        "2x": {
+          "IS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": -58.65238157679118,
+            "t_stat": -1.5114071623718635
+          },
+          "OOS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": -90.42459317905143,
+            "t_stat": -2.551938377835503
+          }
+        },
+        "4x": {
+          "IS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": -68.65238157679119,
+            "t_stat": -1.717103703504965
+          },
+          "OOS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": -100.42459317905143,
+            "t_stat": -2.6874175117224577
+          }
+        }
+      },
+      "baselines": {
+        "IS": {
+          "n_trades": 18,
+          "always_long_net_bps": -25.369884750806587,
+          "always_long_t": -0.07241889375418745,
+          "strategy_dir_net_bps": -52.30541618247665,
+          "random_mean_net_bps": 0.15370495341360138,
+          "random_lo_bps": -77.98443016302363,
+          "random_hi_bps": 83.59750750199291,
+          "universe_mean_bps": 3.8315822102682606
+        },
+        "OOS": {
+          "n_trades": 15,
+          "always_long_net_bps": 113.14103238446717,
+          "always_long_t": 2.7349093600992727,
+          "strategy_dir_net_bps": -82.23328808266746,
+          "random_mean_net_bps": -0.07647274577897294,
+          "random_lo_bps": -103.9771671144101,
+          "random_hi_bps": 96.38837090880766,
+          "universe_mean_bps": 24.526184133266238
+        }
+      }
+    },
+    {
+      "id": "M3",
+      "family": "M3",
+      "horizon": "day",
+      "timeframe": "5m",
+      "name_en": "VWAP reversion (5m)",
+      "name_de": "VWAP-Rückkehr (5 Min.)",
+      "params": {},
+      "note": "",
+      "verdict": "rejected",
+      "strong": false,
+      "IS": {
+        "n_trades": 777,
+        "n_days": 30,
+        "trades_per_day": 25.9,
+        "win_rate": 0.30244530244530243,
+        "mean_net_bps": -5.808908900648852,
+        "median_net_bps": -22.158640566046213,
+        "mean_gross_bps": -0.8089089006488493,
+        "t_stat": -2.428485016815312,
+        "mean_daily_net_bps": -5.40885190388565,
+        "profit_factor": 0.7166054082237834,
+        "ci_low_bps": -9.851015836435547,
+        "ci_high_bps": -1.2873777288620842,
+        "sharpe": -7.038418260229376,
+        "max_drawdown_pct": 1.6526987392919548,
+        "mean_excess_bps": -6.49127268144007,
+        "excess_t_stat": -2.9973019211408105,
+        "long": {
+          "n_trades": 427,
+          "mean_net_bps": -5.58945637008746,
+          "win_rate": 0.30679156908665106,
+          "t_stat": -1.7842217849551743
+        },
+        "short": {
+          "n_trades": 350,
+          "mean_net_bps": -6.076640987933752,
+          "win_rate": 0.29714285714285715,
+          "t_stat": -1.554638577086699
+        }
+      },
+      "OOS": {
+        "n_trades": 322,
+        "n_days": 13,
+        "trades_per_day": 24.76923076923077,
+        "win_rate": 0.2919254658385093,
+        "mean_net_bps": -5.865630452417558,
+        "median_net_bps": -25.371759906342437,
+        "mean_gross_bps": -0.8656304524175529,
+        "t_stat": -2.0697758382606715,
+        "mean_daily_net_bps": -4.890254009417584,
+        "profit_factor": 0.7624018027893454,
+        "ci_low_bps": -9.818089020535549,
+        "ci_high_bps": -0.6748703254629921,
+        "sharpe": -9.112801431980651,
+        "max_drawdown_pct": 0.5571557826621426,
+        "mean_excess_bps": 1.0675229974747273,
+        "excess_t_stat": -0.10966648824005044,
+        "long": {
+          "n_trades": 185,
+          "mean_net_bps": -9.455192386724168,
+          "win_rate": 0.24324324324324326,
+          "t_stat": -1.1140463943972114
+        },
+        "short": {
+          "n_trades": 137,
+          "mean_net_bps": -1.0184117820035217,
+          "win_rate": 0.35766423357664234,
+          "t_stat": 0.9350814075147095
+        }
+      },
+      "ALL": {
+        "n_trades": 1099,
+        "n_days": 43,
+        "trades_per_day": 25.558139534883722,
+        "win_rate": 0.29936305732484075,
+        "mean_net_bps": -5.825527954033314,
+        "median_net_bps": -23.10326268030904,
+        "mean_gross_bps": -0.8255279540333103,
+        "t_stat": -3.0984526872418368,
+        "mean_daily_net_bps": -5.252066493930189,
+        "profit_factor": 0.7318529143078675,
+        "ci_low_bps": -8.646884252969704,
+        "ci_high_bps": -1.9763094938578274,
+        "sharpe": -7.500857442271752,
+        "max_drawdown_pct": 2.2884317605162408,
+        "mean_excess_bps": -4.276593692713442,
+        "excess_t_stat": -2.494869841736626,
+        "long": {
+          "n_trades": 612,
+          "mean_net_bps": -6.758020362044634,
+          "win_rate": 0.2875816993464052,
+          "t_stat": -2.1282354320000367
+        },
+        "short": {
+          "n_trades": 487,
+          "mean_net_bps": -4.653689445403071,
+          "win_rate": 0.3141683778234086,
+          "t_stat": -0.5779229425321174
+        }
+      },
+      "cost_sensitivity": {
+        "1x": {
+          "IS": {
+            "cost_bps": 5.0,
+            "mean_net_bps": -5.808908900648852,
+            "t_stat": -2.428485016815312
+          },
+          "OOS": {
+            "cost_bps": 5.0,
+            "mean_net_bps": -5.865630452417558,
+            "t_stat": -2.0697758382606715
+          }
+        },
+        "2x": {
+          "IS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": -10.808908900648852,
+            "t_stat": -4.6734022931329715
+          },
+          "OOS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": -10.865630452417555,
+            "t_stat": -4.186001124590098
+          }
+        },
+        "4x": {
+          "IS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": -20.808908900648852,
+            "t_stat": -9.163236845768287
+          },
+          "OOS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": -20.865630452417555,
+            "t_stat": -8.418451697248953
+          }
+        }
+      },
+      "baselines": {
+        "IS": {
+          "n_trades": 777,
+          "always_long_net_bps": -4.855453176420034,
+          "always_long_t": -2.43085363468374,
+          "strategy_dir_net_bps": -6.236747993345869,
+          "random_mean_net_bps": -4.839690568683708,
+          "random_lo_bps": -7.80827706428739,
+          "random_hi_bps": -1.8255530971444731,
+          "universe_mean_bps": 1.6325868267736225
+        },
+        "OOS": {
+          "n_trades": 322,
+          "always_long_net_bps": -8.93283829095914,
+          "always_long_t": -2.5323580940643806,
+          "strategy_dir_net_bps": -8.041254747191926,
+          "random_mean_net_bps": -4.701100875346577,
+          "random_lo_bps": -11.227665711319151,
+          "random_hi_bps": 2.087001759664204,
+          "universe_mean_bps": -2.2038249393680904
+        }
+      }
+    },
+    {
+      "id": "S1",
+      "family": "S1",
+      "horizon": "swing",
+      "timeframe": "1d",
+      "name_en": "RSI(2) pullback",
+      "name_de": "RSI(2)-Rücksetzer",
+      "params": {
+        "lo": 10,
+        "hi": 90,
+        "hold": 5,
+        "stop_atr": 2.5
+      },
+      "note": "",
+      "verdict": "rejected",
+      "strong": false,
+      "IS": {
+        "n_trades": 5460,
+        "n_days": 1427,
+        "trades_per_day": 3.826208829712684,
+        "win_rate": 0.6276556776556776,
+        "mean_net_bps": 6.489201282006956,
+        "median_net_bps": 60.245208293514,
+        "mean_gross_bps": 16.489201282006967,
+        "t_stat": -1.2008387991798695,
+        "mean_daily_net_bps": -7.889415059955037,
+        "profit_factor": 1.058060215881373,
+        "ci_low_bps": -20.154020768536114,
+        "ci_high_bps": 5.235321204344952,
+        "sharpe": -0.5046299184779911,
+        "max_drawdown_pct": 185.788244562456,
+        "mean_excess_bps": -3.0555259337657135,
+        "excess_t_stat": -2.3643898280903928,
+        "long": {
+          "n_trades": 3752,
+          "mean_net_bps": 7.356847289929873,
+          "win_rate": 0.6423240938166311,
+          "t_stat": 0.25828459367764994
+        },
+        "short": {
+          "n_trades": 1708,
+          "mean_net_bps": 4.583224805586122,
+          "win_rate": 0.5954332552693209,
+          "t_stat": -2.1192892459639334
+        }
+      },
+      "OOS": {
+        "n_trades": 2430,
+        "n_days": 657,
+        "trades_per_day": 3.6986301369863015,
+        "win_rate": 0.6152263374485597,
+        "mean_net_bps": -1.964256789784313,
+        "median_net_bps": 55.86229419226153,
+        "mean_gross_bps": 8.035743210215696,
+        "t_stat": -1.71320691154228,
+        "mean_daily_net_bps": -15.666230498611617,
+        "profit_factor": 0.9831691977212151,
+        "ci_low_bps": -33.77960086729353,
+        "ci_high_bps": 1.5545245867351702,
+        "sharpe": -1.0610293645580444,
+        "max_drawdown_pct": 107.74504808203575,
+        "mean_excess_bps": -7.825093785636413,
+        "excess_t_stat": -2.1605959727675343,
+        "long": {
+          "n_trades": 1672,
+          "mean_net_bps": 15.299256299939094,
+          "win_rate": 0.638755980861244,
+          "t_stat": 0.5490466338977368
+        },
+        "short": {
+          "n_trades": 758,
+          "mean_net_bps": -40.044195953395835,
+          "win_rate": 0.5633245382585752,
+          "t_stat": -2.47534733712908
+        }
+      },
+      "ALL": {
+        "n_trades": 7890,
+        "n_days": 2084,
+        "trades_per_day": 3.785988483685221,
+        "win_rate": 0.62382762991128,
+        "mean_net_bps": 3.8856647655997585,
+        "median_net_bps": 59.18083006874798,
+        "mean_gross_bps": 13.885664765599767,
+        "t_stat": -1.935637965127588,
+        "mean_daily_net_bps": -10.341127028859725,
+        "profit_factor": 1.0342990026143108,
+        "ci_low_bps": -20.84332158151279,
+        "ci_high_bps": -0.5288279134058151,
+        "sharpe": -0.6730937295428875,
+        "max_drawdown_pct": 225.64327803125207,
+        "mean_excess_bps": -4.524480291185967,
+        "excess_t_stat": -3.1768307215985905,
+        "long": {
+          "n_trades": 5424,
+          "mean_net_bps": 9.805171011304397,
+          "win_rate": 0.6412241887905604,
+          "t_stat": 0.5383117790073237
+        },
+        "short": {
+          "n_trades": 2466,
+          "mean_net_bps": -9.134368436631362,
+          "win_rate": 0.5855636658556367,
+          "t_stat": -3.1867817630341424
+        }
+      },
+      "cost_sensitivity": {
+        "1x": {
+          "IS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": 6.489201282006956,
+            "t_stat": -1.2008387991798695
+          },
+          "OOS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": -1.964256789784313,
+            "t_stat": -1.71320691154228
+          }
+        },
+        "2x": {
+          "IS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": -3.510798717993053,
+            "t_stat": -2.722927306444582
+          },
+          "OOS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": -11.964256789784319,
+            "t_stat": -2.8067736835198214
+          }
+        },
+        "4x": {
+          "IS": {
+            "cost_bps": 40.0,
+            "mean_net_bps": -23.510798717993058,
+            "t_stat": -5.767104320974006
+          },
+          "OOS": {
+            "cost_bps": 40.0,
+            "mean_net_bps": -31.964256789784326,
+            "t_stat": -4.993907227474902
+          }
+        }
+      },
+      "baselines": {
+        "IS": {
+          "n_trades": 5460,
+          "always_long_net_bps": -2.1500508531110896,
+          "always_long_t": 0.8247745780719997,
+          "strategy_dir_net_bps": 8.085337535787337,
+          "random_mean_net_bps": -10.34266035704388,
+          "random_lo_bps": -18.745597952853668,
+          "random_hi_bps": -0.9144052297663703,
+          "universe_mean_bps": 11.035169915959727
+        },
+        "OOS": {
+          "n_trades": 2430,
+          "always_long_net_bps": 19.824890923359987,
+          "always_long_t": 2.145732422926076,
+          "strategy_dir_net_bps": -0.5569417208282468,
+          "random_mean_net_bps": -10.032827149164396,
+          "random_lo_bps": -21.635287924286047,
+          "random_hi_bps": 1.9209098985176727,
+          "universe_mean_bps": 20.73643954767527
+        }
+      }
+    },
+    {
+      "id": "S2",
+      "family": "S2",
+      "horizon": "swing",
+      "timeframe": "1d",
+      "name_en": "5-day reversal",
+      "name_de": "5-Tage-Umkehr",
+      "params": {
+        "z": 2.0,
+        "hold": 5,
+        "stop_atr": 2.5
+      },
+      "note": "",
+      "verdict": "rejected",
+      "strong": false,
+      "IS": {
+        "n_trades": 1256,
+        "n_days": 485,
+        "trades_per_day": 2.5896907216494847,
+        "win_rate": 0.5119426751592356,
+        "mean_net_bps": 12.459703239541904,
+        "median_net_bps": 10.62825345403696,
+        "mean_gross_bps": 22.459703239541916,
+        "t_stat": -0.98163298512695,
+        "mean_daily_net_bps": -17.042862015807078,
+        "profit_factor": 1.0735118669091694,
+        "ci_low_bps": -50.40776846106198,
+        "ci_high_bps": 17.608064338565494,
+        "sharpe": -0.7075848803512053,
+        "max_drawdown_pct": 114.02980983560786,
+        "mean_excess_bps": 33.292405432011414,
+        "excess_t_stat": -0.22933316546905258,
+        "long": {
+          "n_trades": 762,
+          "mean_net_bps": -4.34150262009401,
+          "win_rate": 0.5223097112860893,
+          "t_stat": -0.3876457034039073
+        },
+        "short": {
+          "n_trades": 494,
+          "mean_net_bps": 38.3757333307212,
+          "win_rate": 0.4959514170040486,
+          "t_stat": -0.4517579123621822
+        }
+      },
+      "OOS": {
+        "n_trades": 471,
+        "n_days": 241,
+        "trades_per_day": 1.954356846473029,
+        "win_rate": 0.5392781316348195,
+        "mean_net_bps": 37.928403414073685,
+        "median_net_bps": 32.24752354693661,
+        "mean_gross_bps": 47.92840341407369,
+        "t_stat": 0.8081910123089107,
+        "mean_daily_net_bps": 18.594613488277872,
+        "profit_factor": 1.2637932178181277,
+        "ci_low_bps": -26.794397962702714,
+        "ci_high_bps": 63.80518808262202,
+        "sharpe": 0.8264294130580957,
+        "max_drawdown_pct": 70.2903957855757,
+        "mean_excess_bps": 18.47299513196833,
+        "excess_t_stat": 0.3363774065189493,
+        "long": {
+          "n_trades": 320,
+          "mean_net_bps": 66.99274098941352,
+          "win_rate": 0.565625,
+          "t_stat": 2.1973484062375763
+        },
+        "short": {
+          "n_trades": 151,
+          "mean_net_bps": -23.664894758831917,
+          "win_rate": 0.48344370860927155,
+          "t_stat": -0.9594321509252791
+        }
+      },
+      "ALL": {
+        "n_trades": 1727,
+        "n_days": 726,
+        "trades_per_day": 2.378787878787879,
+        "win_rate": 0.5193977996525767,
+        "mean_net_bps": 19.405712378050573,
+        "median_net_bps": 15.882178935781042,
+        "mean_gross_bps": 29.405712378050577,
+        "t_stat": -0.3752350787943569,
+        "mean_daily_net_bps": -5.212790946269233,
+        "profit_factor": 1.1194343549580006,
+        "ci_low_bps": -29.991897240610317,
+        "ci_high_bps": 21.312776497878044,
+        "sharpe": -0.22107284060116988,
+        "max_drawdown_pct": 127.38794759094007,
+        "mean_excess_bps": 29.2507480774542,
+        "excess_t_stat": 0.0024909788834910906,
+        "long": {
+          "n_trades": 1082,
+          "mean_net_bps": 16.755501035213207,
+          "win_rate": 0.5351201478743068,
+          "t_stat": 0.8858486986372205
+        },
+        "short": {
+          "n_trades": 645,
+          "mean_net_bps": 23.851493266345194,
+          "win_rate": 0.4930232558139535,
+          "t_stat": -0.8988674933143627
+        }
+      },
+      "cost_sensitivity": {
+        "1x": {
+          "IS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": 12.459703239541904,
+            "t_stat": -0.98163298512695
+          },
+          "OOS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": 37.928403414073685,
+            "t_stat": 0.8081910123089107
+          }
+        },
+        "2x": {
+          "IS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": 2.459703239541896,
+            "t_stat": -1.557611939962409
+          },
+          "OOS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": 27.92840341407368,
+            "t_stat": 0.37355384557328647
+          }
+        },
+        "4x": {
+          "IS": {
+            "cost_bps": 40.0,
+            "mean_net_bps": -17.54029676045812,
+            "t_stat": -2.7095698496333274
+          },
+          "OOS": {
+            "cost_bps": 40.0,
+            "mean_net_bps": 7.928403414073666,
+            "t_stat": -0.4957204878979612
+          }
+        }
+      },
+      "baselines": {
+        "IS": {
+          "n_trades": 1256,
+          "always_long_net_bps": -21.03824621041181,
+          "always_long_t": -0.10634412729108886,
+          "strategy_dir_net_bps": 14.796336439697944,
+          "random_mean_net_bps": -10.199035930647032,
+          "random_lo_bps": -40.7593297953739,
+          "random_hi_bps": 14.031929512149237,
+          "universe_mean_bps": 13.416296036956757
+        },
+        "OOS": {
+          "n_trades": 471,
+          "always_long_net_bps": 54.85804453272597,
+          "always_long_t": 2.1941467919710784,
+          "strategy_dir_net_bps": 46.83474552141783,
+          "random_mean_net_bps": -13.053255423506156,
+          "random_lo_bps": -50.932727974845804,
+          "random_hi_bps": 17.857643969807306,
+          "universe_mean_bps": 40.09036037231613
+        }
+      }
+    },
+    {
+      "id": "S3",
+      "family": "S3",
+      "horizon": "swing",
+      "timeframe": "1d",
+      "name_en": "Volume breakout",
+      "name_de": "Ausbruch mit Volumen",
+      "params": {
+        "vol": 1.5,
+        "hold": 10,
+        "stop_atr": 2.0
+      },
+      "note": "",
+      "verdict": "rejected",
+      "strong": false,
+      "IS": {
+        "n_trades": 3200,
+        "n_days": 1148,
+        "trades_per_day": 2.7874564459930316,
+        "win_rate": 0.4421875,
+        "mean_net_bps": -6.370632125431549,
+        "median_net_bps": -85.5415443174179,
+        "mean_gross_bps": 3.6293678745684614,
+        "t_stat": 0.13455595147551114,
+        "mean_daily_net_bps": 2.1010624760458265,
+        "profit_factor": 0.9707988689457437,
+        "ci_low_bps": -30.429120435325913,
+        "ci_high_bps": 33.31060062815118,
+        "sharpe": 0.06304232737929391,
+        "max_drawdown_pct": 181.07004559534448,
+        "mean_excess_bps": -11.10053341567429,
+        "excess_t_stat": -0.665613449997902,
+        "long": {
+          "n_trades": 1673,
+          "mean_net_bps": 46.666599399670794,
+          "win_rate": 0.5104602510460251,
+          "t_stat": 3.0029797089455683
+        },
+        "short": {
+          "n_trades": 1527,
+          "mean_net_bps": -64.47887596400142,
+          "win_rate": 0.36738703339882123,
+          "t_stat": -3.1789442687168123
+        }
+      },
+      "OOS": {
+        "n_trades": 1287,
+        "n_days": 470,
+        "trades_per_day": 2.7382978723404254,
+        "win_rate": 0.46853146853146854,
+        "mean_net_bps": -18.944770478066605,
+        "median_net_bps": -50.54068471082806,
+        "mean_gross_bps": -8.944770478066598,
+        "t_stat": -0.5721362382839192,
+        "mean_daily_net_bps": -11.771342908335091,
+        "profit_factor": 0.9125802038653715,
+        "ci_low_bps": -53.42896181648673,
+        "ci_high_bps": 28.46273775924911,
+        "sharpe": -0.41893900571571485,
+        "max_drawdown_pct": 149.94723643406064,
+        "mean_excess_bps": -19.857766798920714,
+        "excess_t_stat": -0.8745168687827313,
+        "long": {
+          "n_trades": 654,
+          "mean_net_bps": 66.90805090777815,
+          "win_rate": 0.5244648318042814,
+          "t_stat": 2.86682032901134
+        },
+        "short": {
+          "n_trades": 633,
+          "mean_net_bps": -107.64578972979245,
+          "win_rate": 0.4107424960505529,
+          "t_stat": -4.384666033450937
+        }
+      },
+      "ALL": {
+        "n_trades": 4487,
+        "n_days": 1618,
+        "trades_per_day": 2.773176761433869,
+        "win_rate": 0.44974370403387565,
+        "mean_net_bps": -9.9772548265328,
+        "median_net_bps": -76.76069686420539,
+        "mean_gross_bps": 0.02274517346720798,
+        "t_stat": -0.15323841334956856,
+        "mean_daily_net_bps": -1.9286226479708786,
+        "profit_factor": 0.9541795895073564,
+        "ci_low_bps": -25.616687955502584,
+        "ci_high_bps": 22.736355327808816,
+        "sharpe": -0.06047538729563391,
+        "max_drawdown_pct": 239.87523991194743,
+        "mean_excess_bps": -13.612358546995473,
+        "excess_t_stat": -1.0223672789805425,
+        "long": {
+          "n_trades": 2327,
+          "mean_net_bps": 52.35543020598889,
+          "win_rate": 0.5143962183068328,
+          "t_stat": 4.093758656205989
+        },
+        "short": {
+          "n_trades": 2160,
+          "mean_net_bps": -77.12917985925407,
+          "win_rate": 0.3800925925925926,
+          "t_stat": -4.899861381667237
+        }
+      },
+      "cost_sensitivity": {
+        "1x": {
+          "IS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": -6.370632125431549,
+            "t_stat": 0.13455595147551114
+          },
+          "OOS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": -18.944770478066605,
+            "t_stat": -0.5721362382839192
+          }
+        },
+        "2x": {
+          "IS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": -16.370632125431555,
+            "t_stat": -0.5058626605818697
+          },
+          "OOS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": -28.944770478066616,
+            "t_stat": -1.0581778418114143
+          }
+        },
+        "4x": {
+          "IS": {
+            "cost_bps": 40.0,
+            "mean_net_bps": -36.37063212543158,
+            "t_stat": -1.786699884696631
+          },
+          "OOS": {
+            "cost_bps": 40.0,
+            "mean_net_bps": -48.94477047806664,
+            "t_stat": -2.030261048866405
+          }
+        }
+      },
+      "baselines": {
+        "IS": {
+          "n_trades": 3200,
+          "always_long_net_bps": 45.820974414353685,
+          "always_long_t": 3.411427726988294,
+          "strategy_dir_net_bps": -6.361012534396443,
+          "random_mean_net_bps": -11.168536777035154,
+          "random_lo_bps": -31.70112177018057,
+          "random_hi_bps": 8.055505048827406,
+          "universe_mean_bps": 44.42993179995029
+        },
+        "OOS": {
+          "n_trades": 1287,
+          "always_long_net_bps": 73.49035310060056,
+          "always_long_t": 3.9630645643188696,
+          "strategy_dir_net_bps": -15.482293407792751,
+          "random_mean_net_bps": -9.007149205014725,
+          "random_lo_bps": -38.56280024846657,
+          "random_hi_bps": 16.271891311392338,
+          "universe_mean_bps": 69.63420773766389
+        }
+      }
+    },
+    {
+      "id": "S4",
+      "family": "S4",
+      "horizon": "swing",
+      "timeframe": "1d",
+      "name_en": "Post-gap drift",
+      "name_de": "Drift nach Kurslücke",
+      "params": {
+        "gap": 1.5,
+        "vol": 2.0,
+        "hold": 5,
+        "stop_atr": 2.0
+      },
+      "note": "",
+      "verdict": "rejected",
+      "strong": false,
+      "IS": {
+        "n_trades": 393,
+        "n_days": 293,
+        "trades_per_day": 1.341296928327645,
+        "win_rate": 0.5241730279898219,
+        "mean_net_bps": 74.38306911933014,
+        "median_net_bps": 22.74011181414682,
+        "mean_gross_bps": 84.38306911933014,
+        "t_stat": 1.3317912168321355,
+        "mean_daily_net_bps": 33.685334613182754,
+        "profit_factor": 1.5024827951881394,
+        "ci_low_bps": -14.53535046642595,
+        "ci_high_bps": 84.89904969372171,
+        "sharpe": 1.235101378987304,
+        "max_drawdown_pct": 46.574941756725856,
+        "mean_excess_bps": 13.881187474499804,
+        "excess_t_stat": 1.2998096640118677,
+        "long": {
+          "n_trades": 185,
+          "mean_net_bps": 19.23191827877722,
+          "win_rate": 0.5135135135135135,
+          "t_stat": 0.6111899684226634
+        },
+        "short": {
+          "n_trades": 208,
+          "mean_net_bps": 123.43577539578347,
+          "win_rate": 0.5336538461538461,
+          "t_stat": 1.222550530147098
+        }
+      },
+      "OOS": {
+        "n_trades": 205,
+        "n_days": 143,
+        "trades_per_day": 1.4335664335664335,
+        "win_rate": 0.5170731707317073,
+        "mean_net_bps": 27.947018736078903,
+        "median_net_bps": 25.30056022488237,
+        "mean_gross_bps": 37.94701873607891,
+        "t_stat": 0.7919209284552263,
+        "mean_daily_net_bps": 24.54609155307409,
+        "profit_factor": 1.1858980790739497,
+        "ci_low_bps": -36.48506730677988,
+        "ci_high_bps": 85.51259992563301,
+        "sharpe": 1.0512695180669736,
+        "max_drawdown_pct": 30.254850873463702,
+        "mean_excess_bps": 15.297557250680587,
+        "excess_t_stat": 0.7774110469781943,
+        "long": {
+          "n_trades": 100,
+          "mean_net_bps": 45.81695018363819,
+          "win_rate": 0.56,
+          "t_stat": 0.7089471889339168
+        },
+        "short": {
+          "n_trades": 105,
+          "mean_net_bps": 10.928036405070056,
+          "win_rate": 0.47619047619047616,
+          "t_stat": -0.0439967573024052
+        }
+      },
+      "ALL": {
+        "n_trades": 598,
+        "n_days": 436,
+        "trades_per_day": 1.371559633027523,
+        "win_rate": 0.5217391304347826,
+        "mean_net_bps": 58.46435619530589,
+        "median_net_bps": 22.79754900826992,
+        "mean_gross_bps": 68.4643561953059,
+        "t_stat": 1.5509688764142522,
+        "mean_daily_net_bps": 30.68783058200032,
+        "profit_factor": 1.3928503346624208,
+        "ci_low_bps": -6.763959825999106,
+        "ci_high_bps": 69.49864911836113,
+        "sharpe": 1.179125709008015,
+        "max_drawdown_pct": 46.574941756725856,
+        "mean_excess_bps": 14.366732297438029,
+        "excess_t_stat": 1.5123026494338736,
+        "long": {
+          "n_trades": 285,
+          "mean_net_bps": 28.559999648903876,
+          "win_rate": 0.5298245614035088,
+          "t_stat": 0.9009470414630592
+        },
+        "short": {
+          "n_trades": 313,
+          "mean_net_bps": 85.69356263532049,
+          "win_rate": 0.5143769968051118,
+          "t_stat": 1.0262949284194838
+        }
+      },
+      "cost_sensitivity": {
+        "1x": {
+          "IS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": 74.38306911933014,
+            "t_stat": 1.3317912168321355
+          },
+          "OOS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": 27.947018736078903,
+            "t_stat": 0.7919209284552263
+          }
+        },
+        "2x": {
+          "IS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": 64.38306911933013,
+            "t_stat": 0.9364288931012203
+          },
+          "OOS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": 17.947018736078896,
+            "t_stat": 0.4692948489659852
+          }
+        },
+        "4x": {
+          "IS": {
+            "cost_bps": 40.0,
+            "mean_net_bps": 44.38306911933012,
+            "t_stat": 0.14570424563938975
+          },
+          "OOS": {
+            "cost_bps": 40.0,
+            "mean_net_bps": -2.0529812639211182,
+            "t_stat": -0.17595731001249668
+          }
+        }
+      },
+      "baselines": {
+        "IS": {
+          "n_trades": 393,
+          "always_long_net_bps": -70.24353769037268,
+          "always_long_t": -1.281931533402359,
+          "strategy_dir_net_bps": 75.60313940334234,
+          "random_mean_net_bps": -10.253796936829694,
+          "random_lo_bps": -58.033889797627005,
+          "random_hi_bps": 32.674813486800815,
+          "universe_mean_bps": -46.28966627351484
+        },
+        "OOS": {
+          "n_trades": 205,
+          "always_long_net_bps": 4.149803584034425,
+          "always_long_t": 0.004105001804679317,
+          "strategy_dir_net_bps": 34.893922915207746,
+          "random_mean_net_bps": -10.577516821367462,
+          "random_lo_bps": -62.56360070707263,
+          "random_hi_bps": 38.30222777095996,
+          "universe_mean_bps": 30.92829829050983
+        }
+      }
+    },
+    {
+      "id": "S4s",
+      "family": "S4",
+      "horizon": "swing",
+      "timeframe": "1d",
+      "name_en": "Post-gap drift, short side only",
+      "name_de": "Drift nach Kurslücke, nur Short",
+      "params": {
+        "gap": 1.5,
+        "vol": 2.0,
+        "hold": 5,
+        "stop_atr": 2.0,
+        "sides": "short"
+      },
+      "note": "In-sample, all of S4's per-trade edge sat on the short side (heavy-volume gap downs keep falling).",
+      "verdict": "rejected",
+      "strong": false,
+      "IS": {
+        "n_trades": 210,
+        "n_days": 161,
+        "trades_per_day": 1.3043478260869565,
+        "win_rate": 0.5380952380952381,
+        "mean_net_bps": 124.42543740231092,
+        "median_net_bps": 55.53163965973885,
+        "mean_gross_bps": 134.42543740231093,
+        "t_stat": 1.2990514046336876,
+        "mean_daily_net_bps": 47.15230943229618,
+        "profit_factor": 1.7792288031196033,
+        "ci_low_bps": -20.910425081950194,
+        "ci_high_bps": 117.33255054458,
+        "sharpe": 1.62522565480328,
+        "max_drawdown_pct": 28.814266443243415,
+        "mean_excess_bps": 22.62330132069524,
+        "excess_t_stat": 1.413298762628914,
+        "long": {
+          "n_trades": 0,
+          "mean_net_bps": 0.0,
+          "win_rate": 0.0,
+          "t_stat": 0.0
+        },
+        "short": {
+          "n_trades": 210,
+          "mean_net_bps": 124.42543740231092,
+          "win_rate": 0.5380952380952381,
+          "t_stat": 1.2990514046336876
+        }
+      },
+      "OOS": {
+        "n_trades": 105,
+        "n_days": 82,
+        "trades_per_day": 1.2804878048780488,
+        "win_rate": 0.47619047619047616,
+        "mean_net_bps": 10.928036405070056,
+        "median_net_bps": -17.053294985666092,
+        "mean_gross_bps": 20.928036405070063,
+        "t_stat": -0.0439967573024052,
+        "mean_daily_net_bps": -1.8792375816750275,
+        "profit_factor": 1.0664256243745291,
+        "ci_low_bps": -84.2600780800553,
+        "ci_high_bps": 79.84752070510247,
+        "sharpe": -0.07712834509391535,
+        "max_drawdown_pct": 29.552965196724795,
+        "mean_excess_bps": 28.771662810059855,
+        "excess_t_stat": 1.0963073116547681,
+        "long": {
+          "n_trades": 0,
+          "mean_net_bps": 0.0,
+          "win_rate": 0.0,
+          "t_stat": 0.0
+        },
+        "short": {
+          "n_trades": 105,
+          "mean_net_bps": 10.928036405070056,
+          "win_rate": 0.47619047619047616,
+          "t_stat": -0.0439967573024052
+        }
+      },
+      "ALL": {
+        "n_trades": 315,
+        "n_days": 243,
+        "trades_per_day": 1.2962962962962963,
+        "win_rate": 0.5174603174603175,
+        "mean_net_bps": 86.59297040323062,
+        "median_net_bps": 25.30056022488237,
+        "mean_gross_bps": 96.59297040323064,
+        "t_stat": 1.0921081226469969,
+        "mean_daily_net_bps": 30.606684514001376,
+        "profit_factor": 1.5368767050578165,
+        "ci_low_bps": -20.574908612798247,
+        "ci_high_bps": 85.95698532892979,
+        "sharpe": 1.1121484753568844,
+        "max_drawdown_pct": 54.068409192938184,
+        "mean_excess_bps": 24.672755150483447,
+        "excess_t_stat": 1.792072173283241,
+        "long": {
+          "n_trades": 0,
+          "mean_net_bps": 0.0,
+          "win_rate": 0.0,
+          "t_stat": 0.0
+        },
+        "short": {
+          "n_trades": 315,
+          "mean_net_bps": 86.59297040323062,
+          "win_rate": 0.5174603174603175,
+          "t_stat": 1.0921081226469969
+        }
+      },
+      "cost_sensitivity": {
+        "1x": {
+          "IS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": 124.42543740231092,
+            "t_stat": 1.2990514046336876
+          },
+          "OOS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": 10.928036405070056,
+            "t_stat": -0.0439967573024052
+          }
+        },
+        "2x": {
+          "IS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": 114.4254374023109,
+            "t_stat": 1.0235502849061509
+          },
+          "OOS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": 0.9280364050700463,
+            "t_stat": -0.27811700761790525
+          }
+        },
+        "4x": {
+          "IS": {
+            "cost_bps": 40.0,
+            "mean_net_bps": 94.42543740231089,
+            "t_stat": 0.47254804545107754
+          },
+          "OOS": {
+            "cost_bps": 40.0,
+            "mean_net_bps": -19.07196359492997,
+            "t_stat": -0.7463575082489052
+          }
+        }
+      },
+      "baselines": {
+        "IS": {
+          "n_trades": 210,
+          "always_long_net_bps": -148.73129819560634,
+          "always_long_t": -2.061012991979105,
+          "strategy_dir_net_bps": 128.73129819560634,
+          "random_mean_net_bps": -13.449318504422498,
+          "random_lo_bps": -101.45699640488401,
+          "random_hi_bps": 79.03631899253338,
+          "universe_mean_bps": -101.80213608161567
+        },
+        "OOS": {
+          "n_trades": 105,
+          "always_long_net_bps": -40.01211648995491,
+          "always_long_t": -0.7222711147893142,
+          "strategy_dir_net_bps": 20.012116489954913,
+          "random_mean_net_bps": -13.887478628943223,
+          "random_lo_bps": -92.12800025669448,
+          "random_hi_bps": 57.39885612346923,
+          "universe_mean_bps": 17.843626404989806
+        }
+      }
+    },
+    {
+      "id": "S2s",
+      "family": "S2",
+      "horizon": "swing",
+      "timeframe": "1d",
+      "name_en": "5-day reversal, short side only",
+      "name_de": "5-Tage-Umkehr, nur Short",
+      "params": {
+        "z": 2.0,
+        "hold": 5,
+        "stop_atr": 2.5,
+        "sides": "short"
+      },
+      "note": "In-sample, S2 earned on the short side and lost on the long side.",
+      "verdict": "rejected",
+      "strong": false,
+      "IS": {
+        "n_trades": 494,
+        "n_days": 195,
+        "trades_per_day": 2.533333333333333,
+        "win_rate": 0.4959514170040486,
+        "mean_net_bps": 38.3757333307212,
+        "median_net_bps": -2.046926955813202,
+        "mean_gross_bps": 48.3757333307212,
+        "t_stat": -0.4517579123621822,
+        "mean_daily_net_bps": -13.1302913832338,
+        "profit_factor": 1.2434567543559714,
+        "ci_low_bps": -71.32713698163869,
+        "ci_high_bps": 43.942388161599865,
+        "sharpe": -0.5135570937636725,
+        "max_drawdown_pct": 62.43210769357734,
+        "mean_excess_bps": 81.91494565476914,
+        "excess_t_stat": 1.54725260285764,
+        "long": {
+          "n_trades": 0,
+          "mean_net_bps": 0.0,
+          "win_rate": 0.0,
+          "t_stat": 0.0
+        },
+        "short": {
+          "n_trades": 494,
+          "mean_net_bps": 38.3757333307212,
+          "win_rate": 0.4959514170040486,
+          "t_stat": -0.4517579123621822
+        }
+      },
+      "OOS": {
+        "n_trades": 151,
+        "n_days": 97,
+        "trades_per_day": 1.556701030927835,
+        "win_rate": 0.48344370860927155,
+        "mean_net_bps": -23.664894758831917,
+        "median_net_bps": -5.903844935845051,
+        "mean_gross_bps": -13.664894758831908,
+        "t_stat": -0.9594321509252791,
+        "mean_daily_net_bps": -35.88691814942823,
+        "profit_factor": 0.8623507463815525,
+        "ci_low_bps": -108.71135552908503,
+        "ci_high_bps": 37.97040171833387,
+        "sharpe": -1.5464243198181746,
+        "max_drawdown_pct": 62.304554436188845,
+        "mean_excess_bps": 8.51743118318554,
+        "excess_t_stat": -0.06492703329737784,
+        "long": {
+          "n_trades": 0,
+          "mean_net_bps": 0.0,
+          "win_rate": 0.0,
+          "t_stat": 0.0
+        },
+        "short": {
+          "n_trades": 151,
+          "mean_net_bps": -23.664894758831917,
+          "win_rate": 0.48344370860927155,
+          "t_stat": -0.9594321509252791
+        }
+      },
+      "ALL": {
+        "n_trades": 645,
+        "n_days": 292,
+        "trades_per_day": 2.208904109589041,
+        "win_rate": 0.4930232558139535,
+        "mean_net_bps": 23.851493266345194,
+        "median_net_bps": -3.161596844188921,
+        "mean_gross_bps": 33.85149326634521,
+        "t_stat": -0.8988674933143627,
+        "mean_daily_net_bps": -20.689855754195648,
+        "profit_factor": 1.1481692098768261,
+        "ci_low_bps": -63.24836494203657,
+        "ci_high_bps": 24.079064151036036,
+        "sharpe": -0.8350346932653764,
+        "max_drawdown_pct": 96.15623650458052,
+        "mean_excess_bps": 64.73196164669298,
+        "excess_t_stat": 1.2236011918281602,
+        "long": {
+          "n_trades": 0,
+          "mean_net_bps": 0.0,
+          "win_rate": 0.0,
+          "t_stat": 0.0
+        },
+        "short": {
+          "n_trades": 645,
+          "mean_net_bps": 23.851493266345194,
+          "win_rate": 0.4930232558139535,
+          "t_stat": -0.8988674933143627
+        }
+      },
+      "cost_sensitivity": {
+        "1x": {
+          "IS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": 38.3757333307212,
+            "t_stat": -0.4517579123621822
+          },
+          "OOS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": -23.664894758831917,
+            "t_stat": -0.9594321509252791
+          }
+        },
+        "2x": {
+          "IS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": 28.375733330721186,
+            "t_stat": -0.7958157090833097
+          },
+          "OOS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": -33.66489475883193,
+            "t_stat": -1.2267808675050464
+          }
+        },
+        "4x": {
+          "IS": {
+            "cost_bps": 40.0,
+            "mean_net_bps": 8.37573333072117,
+            "t_stat": -1.4839313025255643
+          },
+          "OOS": {
+            "cost_bps": 40.0,
+            "mean_net_bps": -53.664894758831934,
+            "t_stat": -1.761478300664581
+          }
+        }
+      },
+      "baselines": {
+        "IS": {
+          "n_trades": 494,
+          "always_long_net_bps": -55.554894543054495,
+          "always_long_t": -0.01016016409149067,
+          "strategy_dir_net_bps": 35.554894543054495,
+          "random_mean_net_bps": -10.464097902961054,
+          "random_lo_bps": -54.01953419682461,
+          "random_hi_bps": 34.68358205821559,
+          "universe_mean_bps": 43.53921232404795
+        },
+        "OOS": {
+          "n_trades": 151,
+          "always_long_net_bps": 2.5131583918083895,
+          "always_long_t": 0.36553135174842055,
+          "strategy_dir_net_bps": -22.51315839180839,
+          "random_mean_net_bps": -16.9356021728473,
+          "random_lo_bps": -84.44392427855519,
+          "random_hi_bps": 52.60093037432712,
+          "universe_mean_bps": 32.18232594201745
+        }
+      }
+    },
+    {
+      "id": "S3l",
+      "family": "S3",
+      "horizon": "swing",
+      "timeframe": "1d",
+      "name_en": "Volume breakout, long side only",
+      "name_de": "Ausbruch mit Volumen, nur Long",
+      "params": {
+        "vol": 1.5,
+        "hold": 10,
+        "stop_atr": 2.0,
+        "sides": "long"
+      },
+      "note": "In-sample, breakouts paid while breakdown shorts were squeezed.",
+      "verdict": "validated",
+      "strong": true,
+      "IS": {
+        "n_trades": 1676,
+        "n_days": 826,
+        "trades_per_day": 2.029055690072639,
+        "win_rate": 0.5107398568019093,
+        "mean_net_bps": 46.810459124346345,
+        "median_net_bps": 10.641999523763888,
+        "mean_gross_bps": 56.81045912434636,
+        "t_stat": 2.97726572430187,
+        "mean_daily_net_bps": 51.309171757618394,
+        "profit_factor": 1.287121001900239,
+        "ci_low_bps": 17.71794758314269,
+        "ci_high_bps": 86.8941328219003,
+        "sharpe": 1.6444771539185816,
+        "max_drawdown_pct": 84.30900019638,
+        "mean_excess_bps": -0.3920850153983002,
+        "excess_t_stat": -0.08879922153159366,
+        "long": {
+          "n_trades": 1676,
+          "mean_net_bps": 46.810459124346345,
+          "win_rate": 0.5107398568019093,
+          "t_stat": 2.97726572430187
+        },
+        "short": {
+          "n_trades": 0,
+          "mean_net_bps": 0.0,
+          "win_rate": 0.0,
+          "t_stat": 0.0
+        }
+      },
+      "OOS": {
+        "n_trades": 655,
+        "n_days": 325,
+        "trades_per_day": 2.0153846153846153,
+        "win_rate": 0.5251908396946565,
+        "mean_net_bps": 67.53558335665437,
+        "median_net_bps": 27.8961361737451,
+        "mean_gross_bps": 77.53558335665439,
+        "t_stat": 2.9142562525751274,
+        "mean_daily_net_bps": 86.05499238032795,
+        "profit_factor": 1.390350401980314,
+        "ci_low_bps": 28.00126385952236,
+        "ci_high_bps": 148.13218551860012,
+        "sharpe": 2.5661753375130996,
+        "max_drawdown_pct": 76.87387814764554,
+        "mean_excess_bps": -1.818564509982107,
+        "excess_t_stat": 0.8277082517835278,
+        "long": {
+          "n_trades": 655,
+          "mean_net_bps": 67.53558335665437,
+          "win_rate": 0.5251908396946565,
+          "t_stat": 2.9142562525751274
+        },
+        "short": {
+          "n_trades": 0,
+          "mean_net_bps": 0.0,
+          "win_rate": 0.0,
+          "t_stat": 0.0
+        }
+      },
+      "ALL": {
+        "n_trades": 2331,
+        "n_days": 1151,
+        "trades_per_day": 2.0251954821894005,
+        "win_rate": 0.5148005148005148,
+        "mean_net_bps": 52.63412123166584,
+        "median_net_bps": 14.988087191999409,
+        "mean_gross_bps": 62.63412123166585,
+        "t_stat": 4.097663354842894,
+        "mean_daily_net_bps": 61.12011155117236,
+        "profit_factor": 1.3173829337065643,
+        "ci_low_bps": 31.950475281711885,
+        "ci_high_bps": 89.92704980361277,
+        "sharpe": 1.9173389040365507,
+        "max_drawdown_pct": 84.30900019638,
+        "mean_excess_bps": -0.7929190218128869,
+        "excess_t_stat": 0.42844162878953496,
+        "long": {
+          "n_trades": 2331,
+          "mean_net_bps": 52.63412123166584,
+          "win_rate": 0.5148005148005148,
+          "t_stat": 4.097663354842894
+        },
+        "short": {
+          "n_trades": 0,
+          "mean_net_bps": 0.0,
+          "win_rate": 0.0,
+          "t_stat": 0.0
+        }
+      },
+      "cost_sensitivity": {
+        "1x": {
+          "IS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": 46.810459124346345,
+            "t_stat": 2.97726572430187
+          },
+          "OOS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": 67.53558335665437,
+            "t_stat": 2.9142562525751274
+          }
+        },
+        "2x": {
+          "IS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": 36.81045912434633,
+            "t_stat": 2.3970057781140217
+          },
+          "OOS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": 57.535583356654364,
+            "t_stat": 2.5756057952378812
+          }
+        },
+        "4x": {
+          "IS": {
+            "cost_bps": 40.0,
+            "mean_net_bps": 16.810459124346316,
+            "t_stat": 1.2364858857383254
+          },
+          "OOS": {
+            "cost_bps": 40.0,
+            "mean_net_bps": 37.53558335665435,
+            "t_stat": 1.8983048805633884
+          }
+        }
+      },
+      "baselines": {
+        "IS": {
+          "n_trades": 1676,
+          "always_long_net_bps": 47.00867437201229,
+          "always_long_t": 2.8953401055895767,
+          "strategy_dir_net_bps": 47.00867437201229,
+          "random_mean_net_bps": -9.4795986646379,
+          "random_lo_bps": -32.31414878223949,
+          "random_hi_bps": 13.097072701116067,
+          "universe_mean_bps": 47.20254413974465
+        },
+        "OOS": {
+          "n_trades": 655,
+          "always_long_net_bps": 67.38340185838707,
+          "always_long_t": 2.8198814972759756,
+          "strategy_dir_net_bps": 67.38340185838707,
+          "random_mean_net_bps": -8.11100545082735,
+          "random_lo_bps": -53.541590050922544,
+          "random_hi_bps": 44.385746657034574,
+          "universe_mean_bps": 69.3541478666365
+        }
+      }
+    },
+    {
+      "id": "S1x",
+      "family": "S1",
+      "horizon": "swing",
+      "timeframe": "1d",
+      "name_en": "RSI(2) pullback, extreme threshold",
+      "name_de": "RSI(2)-Rücksetzer, extremere Schwelle",
+      "params": {
+        "lo": 5,
+        "hi": 95,
+        "hold": 5,
+        "stop_atr": 2.5
+      },
+      "note": "A deeper pullback should bounce further relative to the fixed round-trip cost.",
+      "verdict": "rejected",
+      "strong": false,
+      "IS": {
+        "n_trades": 2765,
+        "n_days": 1059,
+        "trades_per_day": 2.6109537299339,
+        "win_rate": 0.6354430379746835,
+        "mean_net_bps": 20.124316224354992,
+        "median_net_bps": 65.57192285836622,
+        "mean_gross_bps": 30.124316224355,
+        "t_stat": 0.2742640606022932,
+        "mean_daily_net_bps": 2.2448865792920745,
+        "profit_factor": 1.191246170551179,
+        "ci_low_bps": -15.045504268663464,
+        "ci_high_bps": 17.96399953356268,
+        "sharpe": 0.1337892416267543,
+        "max_drawdown_pct": 79.19053598557501,
+        "mean_excess_bps": 8.626729736899964,
+        "excess_t_stat": -0.40816161469917883,
+        "long": {
+          "n_trades": 1919,
+          "mean_net_bps": 7.9306678036833285,
+          "win_rate": 0.631578947368421,
+          "t_stat": 0.2860009601151264
+        },
+        "short": {
+          "n_trades": 846,
+          "mean_net_bps": 47.78343125895182,
+          "win_rate": 0.6442080378250591,
+          "t_stat": 0.5941180899960187
+        }
+      },
+      "OOS": {
+        "n_trades": 1182,
+        "n_days": 487,
+        "trades_per_day": 2.427104722792608,
+        "win_rate": 0.6091370558375635,
+        "mean_net_bps": -0.8302279975930239,
+        "median_net_bps": 53.85559267629459,
+        "mean_gross_bps": 9.169772002406985,
+        "t_stat": -1.3536984937206011,
+        "mean_daily_net_bps": -16.723582030829323,
+        "profit_factor": 0.9927258470321378,
+        "ci_low_bps": -40.14504789683198,
+        "ci_high_bps": 9.299898688661658,
+        "sharpe": -0.973773015347631,
+        "max_drawdown_pct": 101.12369294177365,
+        "mean_excess_bps": -13.95217077287852,
+        "excess_t_stat": -2.4024517666815375,
+        "long": {
+          "n_trades": 806,
+          "mean_net_bps": 21.52311509101104,
+          "win_rate": 0.6389578163771712,
+          "t_stat": 0.015615105649009305
+        },
+        "short": {
+          "n_trades": 376,
+          "mean_net_bps": -48.74723472476025,
+          "win_rate": 0.5452127659574468,
+          "t_stat": -1.5358896151128723
+        }
+      },
+      "ALL": {
+        "n_trades": 3947,
+        "n_days": 1546,
+        "trades_per_day": 2.5530401034928847,
+        "win_rate": 0.6275652394223461,
+        "mean_net_bps": 13.849101815856748,
+        "median_net_bps": 62.06652544789582,
+        "mean_gross_bps": 23.84910181585676,
+        "t_stat": -0.5464522298548089,
+        "mean_daily_net_bps": -3.730303726742287,
+        "profit_factor": 1.1283577432165535,
+        "ci_low_bps": -18.14728522584164,
+        "ci_high_bps": 9.271473189444556,
+        "sharpe": -0.22062144669285266,
+        "max_drawdown_pct": 123.9234498103513,
+        "mean_excess_bps": 1.8650726802599409,
+        "excess_t_stat": -1.7567866404923724,
+        "long": {
+          "n_trades": 2725,
+          "mean_net_bps": 11.951039368302093,
+          "win_rate": 0.6337614678899083,
+          "t_stat": 0.24440532782930588
+        },
+        "short": {
+          "n_trades": 1222,
+          "mean_net_bps": 18.08168787934811,
+          "win_rate": 0.613747954173486,
+          "t_stat": -0.4634331478165833
+        }
+      },
+      "cost_sensitivity": {
+        "1x": {
+          "IS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": 20.124316224354992,
+            "t_stat": 0.2742640606022932
+          },
+          "OOS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": -0.8302279975930239,
+            "t_stat": -1.3536984937206011
+          }
+        },
+        "2x": {
+          "IS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": 10.124316224354983,
+            "t_stat": -0.9474638571118503
+          },
+          "OOS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": -10.830227997593035,
+            "t_stat": -2.163153364827226
+          }
+        },
+        "4x": {
+          "IS": {
+            "cost_bps": 40.0,
+            "mean_net_bps": -9.875683775645022,
+            "t_stat": -3.3909196925401366
+          },
+          "OOS": {
+            "cost_bps": 40.0,
+            "mean_net_bps": -30.83022799759304,
+            "t_stat": -3.782063107040475
+          }
+        }
+      },
+      "baselines": {
+        "IS": {
+          "n_trades": 2765,
+          "always_long_net_bps": -14.516366218010521,
+          "always_long_t": -0.8887416711221648,
+          "strategy_dir_net_bps": 21.172200233812486,
+          "random_mean_net_bps": -9.435575395525463,
+          "random_lo_bps": -22.610259734973567,
+          "random_hi_bps": 1.588470171207977,
+          "universe_mean_bps": 8.755230169714427
+        },
+        "OOS": {
+          "n_trades": 1182,
+          "always_long_net_bps": 26.28617382199806,
+          "always_long_t": 0.7956142825509899,
+          "strategy_dir_net_bps": 1.6088261920026137,
+          "random_mean_net_bps": -10.575605996726676,
+          "random_lo_bps": -28.259809952417427,
+          "random_hi_bps": 5.762351085962927,
+          "universe_mean_bps": 27.650581090677804
+        }
+      }
+    },
+    {
+      "id": "S1v",
+      "family": "S1",
+      "horizon": "swing",
+      "timeframe": "1d",
+      "name_en": "RSI(2) pullback, volatile names only",
+      "name_de": "RSI(2)-Rücksetzer, nur volatile Titel",
+      "params": {
+        "lo": 10,
+        "hi": 90,
+        "hold": 5,
+        "stop_atr": 2.5,
+        "atr_pct_min": 0.02
+      },
+      "note": "Costs are fixed in bps while the bounce scales with volatility, so trade only when ATR% >= 2 %.",
+      "verdict": "rejected",
+      "strong": false,
+      "IS": {
+        "n_trades": 3000,
+        "n_days": 1054,
+        "trades_per_day": 2.846299810246679,
+        "win_rate": 0.6303333333333333,
+        "mean_net_bps": 14.994175354303835,
+        "median_net_bps": 92.77053389057043,
+        "mean_gross_bps": 24.994175354303845,
+        "t_stat": -0.773029306301861,
+        "mean_daily_net_bps": -7.9172798375391045,
+        "profit_factor": 1.1094758422378483,
+        "ci_low_bps": -28.01310785213789,
+        "ci_high_bps": 12.294431101002136,
+        "sharpe": -0.377986182037615,
+        "max_drawdown_pct": 225.54738878260926,
+        "mean_excess_bps": 5.481765510554645,
+        "excess_t_stat": -1.2717781532166754,
+        "long": {
+          "n_trades": 1755,
+          "mean_net_bps": 16.88164589751,
+          "win_rate": 0.6501424501424501,
+          "t_stat": 0.26449496915821935
+        },
+        "short": {
+          "n_trades": 1245,
+          "mean_net_bps": 12.33352410665177,
+          "win_rate": 0.6024096385542169,
+          "t_stat": -1.2616195660498342
+        }
+      },
+      "OOS": {
+        "n_trades": 1477,
+        "n_days": 565,
+        "trades_per_day": 2.6141592920353984,
+        "win_rate": 0.6120514556533514,
+        "mean_net_bps": 1.261997834168497,
+        "median_net_bps": 71.42007768457083,
+        "mean_gross_bps": 11.261997834168506,
+        "t_stat": -0.9895523229255008,
+        "mean_daily_net_bps": -12.348325777399818,
+        "profit_factor": 1.0090927546884487,
+        "ci_low_bps": -37.07573641721649,
+        "ci_high_bps": 10.919681802854315,
+        "sharpe": -0.6608681305160139,
+        "max_drawdown_pct": 99.50631463740494,
+        "mean_excess_bps": -2.538416878665197,
+        "excess_t_stat": -1.3116851143564074,
+        "long": {
+          "n_trades": 949,
+          "mean_net_bps": 26.339311031930716,
+          "win_rate": 0.6438356164383562,
+          "t_stat": 0.690059954105689
+        },
+        "short": {
+          "n_trades": 528,
+          "mean_net_bps": -43.810673045900344,
+          "win_rate": 0.5549242424242424,
+          "t_stat": -2.0478540732232453
+        }
+      },
+      "ALL": {
+        "n_trades": 4477,
+        "n_days": 1619,
+        "trades_per_day": 2.7652872143298333,
+        "win_rate": 0.6243019879383516,
+        "mean_net_bps": 10.463814354250252,
+        "median_net_bps": 85.45655175872247,
+        "mean_gross_bps": 20.463814354250264,
+        "t_stat": -1.1886464823721965,
+        "mean_daily_net_bps": -9.463630026557821,
+        "profit_factor": 1.076063690105042,
+        "ci_low_bps": -26.15475277808154,
+        "ci_high_bps": 6.2527800640837565,
+        "sharpe": -0.4689532559099826,
+        "max_drawdown_pct": 225.54738878260926,
+        "mean_excess_bps": 2.8358398038587085,
+        "excess_t_stat": -1.7987549330877515,
+        "long": {
+          "n_trades": 2704,
+          "mean_net_bps": 20.200922603340345,
+          "win_rate": 0.6479289940828402,
+          "t_stat": 0.632503252351008
+        },
+        "short": {
+          "n_trades": 1773,
+          "mean_net_bps": -4.386236805106554,
+          "win_rate": 0.5882684715172025,
+          "t_stat": -2.2527638895450193
+        }
+      },
+      "cost_sensitivity": {
+        "1x": {
+          "IS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": 14.994175354303835,
+            "t_stat": -0.773029306301861
+          },
+          "OOS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": 1.261997834168497,
+            "t_stat": -0.9895523229255008
+          }
+        },
+        "2x": {
+          "IS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": 4.994175354303826,
+            "t_stat": -1.7494117535113296
+          },
+          "OOS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": -8.738002165831512,
+            "t_stat": -1.7909179013560619
+          }
+        },
+        "4x": {
+          "IS": {
+            "cost_bps": 40.0,
+            "mean_net_bps": -15.005824645696185,
+            "t_stat": -3.702176647930266
+          },
+          "OOS": {
+            "cost_bps": 40.0,
+            "mean_net_bps": -28.73800216583152,
+            "t_stat": -3.393649058217183
+          }
+        }
+      },
+      "baselines": {
+        "IS": {
+          "n_trades": 3000,
+          "always_long_net_bps": -1.5127641161343668,
+          "always_long_t": 0.5422035766727387,
+          "strategy_dir_net_bps": 19.237315667039006,
+          "random_mean_net_bps": -10.15286899624328,
+          "random_lo_bps": -24.384776940180583,
+          "random_hi_bps": 2.0999586963187515,
+          "universe_mean_bps": 12.470545542201917
+        },
+        "OOS": {
+          "n_trades": 1477,
+          "always_long_net_bps": 29.957415655368816,
+          "always_long_t": 1.647940199826297,
+          "strategy_dir_net_bps": 2.2295285702229646,
+          "random_mean_net_bps": -10.2264443764262,
+          "random_lo_bps": -28.787351599690922,
+          "random_hi_bps": 10.859306480223896,
+          "universe_mean_bps": 21.630960688199817
+        }
+      }
+    },
+    {
+      "id": "D5v",
+      "family": "D5",
+      "horizon": "day",
+      "timeframe": "1d",
+      "name_en": "RSI(2) extreme day trade, volatile names only",
+      "name_de": "RSI(2)-Extrem Daytrade, nur volatile Titel",
+      "params": {
+        "lo": 5,
+        "hi": 95,
+        "stop_atr": 1.0,
+        "hold": 1,
+        "atr_pct_min": 0.02
+      },
+      "note": "D5 was gross-positive but about equal to its 5 bps cost; larger daily ranges (ATR% >= 2 %) dilute the cost.",
+      "verdict": "rejected",
+      "strong": false,
+      "IS": {
+        "n_trades": 2560,
+        "n_days": 912,
+        "trades_per_day": 2.807017543859649,
+        "win_rate": 0.507421875,
+        "mean_net_bps": 7.05804457141423,
+        "median_net_bps": 4.192049397527269,
+        "mean_gross_bps": 12.058044571414232,
+        "t_stat": -0.03068534175890419,
+        "mean_daily_net_bps": -0.1624183208598356,
+        "profit_factor": 1.100690339097185,
+        "ci_low_bps": -10.680087551052454,
+        "ci_high_bps": 10.78045897250768,
+        "sharpe": -0.016129979515141713,
+        "max_drawdown_pct": 51.488501403387545,
+        "mean_excess_bps": 5.228667706173374,
+        "excess_t_stat": -0.3276433523209606,
+        "long": {
+          "n_trades": 1489,
+          "mean_net_bps": 6.029367881097728,
+          "win_rate": 0.5070517125587642,
+          "t_stat": -0.20820748366448483
+        },
+        "short": {
+          "n_trades": 1071,
+          "mean_net_bps": 8.48820292050972,
+          "win_rate": 0.5079365079365079,
+          "t_stat": 0.6567461196977853
+        }
+      },
+      "OOS": {
+        "n_trades": 1241,
+        "n_days": 509,
+        "trades_per_day": 2.43811394891945,
+        "win_rate": 0.48751007252215955,
+        "mean_net_bps": -4.239722699371471,
+        "median_net_bps": -6.693293015327946,
+        "mean_gross_bps": 0.7602773006285322,
+        "t_stat": 0.3126286692692781,
+        "mean_daily_net_bps": 1.9677774505718728,
+        "profit_factor": 0.934897647118885,
+        "ci_low_bps": -10.144179402067529,
+        "ci_high_bps": 14.312324169317991,
+        "sharpe": 0.21997340695663692,
+        "max_drawdown_pct": 31.620818122236937,
+        "mean_excess_bps": -3.739432478446899,
+        "excess_t_stat": 0.21318756261522442,
+        "long": {
+          "n_trades": 766,
+          "mean_net_bps": -1.3692549288505431,
+          "win_rate": 0.49216710182767626,
+          "t_stat": -0.31835993926820527
+        },
+        "short": {
+          "n_trades": 475,
+          "mean_net_bps": -8.868729672464172,
+          "win_rate": 0.48,
+          "t_stat": 0.24934847194930035
+        }
+      },
+      "ALL": {
+        "n_trades": 3801,
+        "n_days": 1421,
+        "trades_per_day": 2.6748768472906406,
+        "win_rate": 0.5009208103130756,
+        "mean_net_bps": 3.369402323835946,
+        "median_net_bps": 0.4107530103464362,
+        "mean_gross_bps": 8.369402323835951,
+        "t_stat": 0.14735672413816295,
+        "mean_daily_net_bps": 0.6006145064862151,
+        "profit_factor": 1.0492077314942136,
+        "ci_low_bps": -7.526310449125625,
+        "ci_high_bps": 8.684732926040676,
+        "sharpe": 0.06205448699671234,
+        "max_drawdown_pct": 51.488501403387545,
+        "mean_excess_bps": 2.3006455201397618,
+        "excess_t_stat": -0.1597241038592657,
+        "long": {
+          "n_trades": 2255,
+          "mean_net_bps": 3.5161328157228384,
+          "win_rate": 0.5019955654101995,
+          "t_stat": -0.358404452071086
+        },
+        "short": {
+          "n_trades": 1546,
+          "mean_net_bps": 3.155380810766772,
+          "win_rate": 0.49935316946959896,
+          "t_stat": 0.6787851419897079
+        }
+      },
+      "cost_sensitivity": {
+        "1x": {
+          "IS": {
+            "cost_bps": 5.0,
+            "mean_net_bps": 7.05804457141423,
+            "t_stat": -0.03068534175890419
+          },
+          "OOS": {
+            "cost_bps": 5.0,
+            "mean_net_bps": -4.239722699371471,
+            "t_stat": 0.3126286692692781
+          }
+        },
+        "2x": {
+          "IS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": 2.0580445714142246,
+            "t_stat": -0.9753245178215965
+          },
+          "OOS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": -9.239722699371477,
+            "t_stat": -0.48174131697693734
+          }
+        },
+        "4x": {
+          "IS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": -7.941955428585782,
+            "t_stat": -2.8646028699469803
+          },
+          "OOS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": -19.23972269937148,
+            "t_stat": -2.0704812894693685
+          }
+        }
+      },
+      "baselines": {
+        "IS": {
+          "n_trades": 2560,
+          "always_long_net_bps": -3.7902896194188846,
+          "always_long_t": -0.8429883695147271,
+          "strategy_dir_net_bps": 8.661493548908728,
+          "random_mean_net_bps": -4.480225442789547,
+          "random_lo_bps": -12.03113298011542,
+          "random_hi_bps": 3.6810575834257486,
+          "universe_mean_bps": 2.8686141220205887
+        },
+        "OOS": {
+          "n_trades": 1241,
+          "always_long_net_bps": -0.2659212421851371,
+          "always_long_t": -0.5836880622698185,
+          "strategy_dir_net_bps": -4.021267462159664,
+          "random_mean_net_bps": -4.969720275870487,
+          "random_lo_bps": -14.739905923842977,
+          "random_hi_bps": 3.9794005836118123,
+          "universe_mean_bps": 0.49896040353582805
+        }
+      }
+    },
+    {
+      "id": "H3x",
+      "family": "H3",
+      "horizon": "day",
+      "timeframe": "60m",
+      "name_en": "Morning fade, only extreme first hours",
+      "name_de": "Morgen-Fade, nur extreme erste Stunde",
+      "params": {
+        "mult": 2.0
+      },
+      "note": "A 1-ATR first hour is too common to fade; require 2 ATR%.",
+      "verdict": "rejected",
+      "strong": false,
+      "IS": {
+        "n_trades": 25,
+        "n_days": 22,
+        "trades_per_day": 1.1363636363636365,
+        "win_rate": 0.12,
+        "mean_net_bps": -10.460158411413431,
+        "median_net_bps": -19.09597695760767,
+        "mean_gross_bps": -5.460158411413429,
+        "t_stat": -0.543137280382596,
+        "mean_daily_net_bps": -9.469001753430991,
+        "profit_factor": 0.6346774914860553,
+        "ci_low_bps": -37.490220991393585,
+        "ci_high_bps": 28.18101715577914,
+        "sharpe": -1.8382244712324678,
+        "max_drawdown_pct": 4.780218433155964,
+        "mean_excess_bps": -11.348404389610701,
+        "excess_t_stat": -0.6285823748588866,
+        "long": {
+          "n_trades": 13,
+          "mean_net_bps": -18.711859609430917,
+          "win_rate": 0.15384615384615385,
+          "t_stat": -1.292570493710614
+        },
+        "short": {
+          "n_trades": 12,
+          "mean_net_bps": -1.5208154468944926,
+          "win_rate": 0.08333333333333333,
+          "t_stat": 0.02146654971625545
+        }
+      },
+      "OOS": {
+        "n_trades": 14,
+        "n_days": 11,
+        "trades_per_day": 1.2727272727272727,
+        "win_rate": 0.14285714285714285,
+        "mean_net_bps": -28.828592683130775,
+        "median_net_bps": -40.38198959620543,
+        "mean_gross_bps": -23.828592683130772,
+        "t_stat": -1.2922340198360966,
+        "mean_daily_net_bps": -26.55128800055879,
+        "profit_factor": 0.31621447593938073,
+        "ci_low_bps": -60.96455231311154,
+        "ci_high_bps": 14.401619508785236,
+        "sharpe": -6.1850768204936255,
+        "max_drawdown_pct": 2.645813938813299,
+        "mean_excess_bps": -2.8840248739014185,
+        "excess_t_stat": -0.39149987031439676,
+        "long": {
+          "n_trades": 9,
+          "mean_net_bps": -9.524255986133724,
+          "win_rate": 0.2222222222222222,
+          "t_stat": 0.13257967390210254
+        },
+        "short": {
+          "n_trades": 5,
+          "mean_net_bps": -63.57639873772548,
+          "win_rate": 0.0,
+          "t_stat": -5.96572737513073
+        }
+      },
+      "ALL": {
+        "n_trades": 39,
+        "n_days": 33,
+        "trades_per_day": 1.1818181818181819,
+        "win_rate": 0.1282051282051282,
+        "mean_net_bps": -17.053955329465815,
+        "median_net_bps": -27.482774124816807,
+        "mean_gross_bps": -12.05395532946581,
+        "t_stat": -1.13341666699263,
+        "mean_daily_net_bps": -15.163097169140258,
+        "profit_factor": 0.4907554825621155,
+        "ci_low_bps": -39.48782842122068,
+        "ci_high_bps": 13.589793248855234,
+        "sharpe": -3.1320803520025025,
+        "max_drawdown_pct": 5.474990956940099,
+        "mean_excess_bps": -8.309909178843267,
+        "excess_t_stat": -0.749180146609559,
+        "long": {
+          "n_trades": 22,
+          "mean_net_bps": -14.953294490809338,
+          "win_rate": 0.18181818181818182,
+          "t_stat": -0.8208883193955069
+        },
+        "short": {
+          "n_trades": 17,
+          "mean_net_bps": -19.772457591256547,
+          "win_rate": 0.058823529411764705,
+          "t_stat": -0.8557661346771349
+        }
+      },
+      "cost_sensitivity": {
+        "1x": {
+          "IS": {
+            "cost_bps": 5.0,
+            "mean_net_bps": -10.460158411413431,
+            "t_stat": -0.543137280382596
+          },
+          "OOS": {
+            "cost_bps": 5.0,
+            "mean_net_bps": -28.828592683130775,
+            "t_stat": -1.2922340198360966
+          }
+        },
+        "2x": {
+          "IS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": -15.460158411413431,
+            "t_stat": -0.8299348196193989
+          },
+          "OOS": {
+            "cost_bps": 10.0,
+            "mean_net_bps": -33.82859268313078,
+            "t_stat": -1.535580787007787
+          }
+        },
+        "4x": {
+          "IS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": -25.460158411413424,
+            "t_stat": -1.4035298980930044
+          },
+          "OOS": {
+            "cost_bps": 20.0,
+            "mean_net_bps": -43.82859268313078,
+            "t_stat": -2.0222743213511687
+          }
+        }
+      },
+      "baselines": {
+        "IS": {
+          "n_trades": 25,
+          "always_long_net_bps": -1.3640786011348283,
+          "always_long_t": 0.04418333698419236,
+          "strategy_dir_net_bps": 5.509619276714765,
+          "random_mean_net_bps": -6.410222806779445,
+          "random_lo_bps": -39.417438454198106,
+          "random_hi_bps": 28.700230375457835,
+          "universe_mean_bps": 5.202717120428672
+        },
+        "OOS": {
+          "n_trades": 14,
+          "always_long_net_bps": -8.075531425924142,
+          "always_long_t": 0.2909908145464478,
+          "strategy_dir_net_bps": -20.674973976053824,
+          "random_mean_net_bps": -4.707529008493603,
+          "random_lo_bps": -35.41109357641962,
+          "random_hi_bps": 26.537128362501743,
+          "universe_mean_bps": -13.236259287777997
+        }
+      }
+    }
+  ]
+}

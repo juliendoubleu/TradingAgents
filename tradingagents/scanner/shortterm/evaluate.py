@@ -118,6 +118,9 @@ def segment_stats(trades: pd.DataFrame, cost_bps: float, *, boot: bool = True) -
         "median_net_bps": float(t["net"].median() * 1e4) if n else 0.0,
         "mean_gross_bps": float(t["gross"].mean() * 1e4) if n else 0.0,
         "t_stat": t_stat(daily),
+        # the quantity the t-stat and the interval belong to (days weigh equally, so it
+        # can differ in size, even in sign, from the per-trade mean on skewed days)
+        "mean_daily_net_bps": float(daily.mean() * 1e4) if len(daily) else 0.0,
     }
     wins, losses = t.loc[t["net"] > 0, "net"].sum(), -t.loc[t["net"] < 0, "net"].sum()
     stats["profit_factor"] = float(wins / losses) if losses > 0 else (
@@ -229,3 +232,27 @@ def evaluate_strategy(trades: pd.DataFrame, is_days, oos_days, base_cost_bps: fl
 def _cost_row(t: pd.DataFrame, cost_bps: float) -> dict:
     s = segment_stats(t, cost_bps, boot=False)
     return {"cost_bps": cost_bps, "mean_net_bps": s["mean_net_bps"], "t_stat": s["t_stat"]}
+
+
+def attach_universe(trades: pd.DataFrame, opens: pd.DataFrame, closes: pd.DataFrame) -> pd.DataFrame:
+    """Add ``univ``: equal-weight average return of every symbol in the panels over each
+    trade's window (entry bar open -> exit bar close).
+
+    ``opens``/``closes`` are bar-by-symbol panels. A symbol with no bar at either end of
+    the window is left out of that average. This is the drift the strategy rides along
+    with: a long rule in a rising market earns ``univ`` without any skill.
+    """
+    if trades.empty:
+        return trades.assign(univ=pd.Series(dtype=float))
+    r_in = opens.index.get_indexer(pd.DatetimeIndex(trades["entry_ts"]))
+    r_out = closes.index.get_indexer(pd.DatetimeIndex(trades["exit_ts"]))
+    if (r_in < 0).any() or (r_out < 0).any():
+        raise ValueError("a trade's entry or exit bar is missing from the universe panel")
+    o = opens.to_numpy(dtype=float)[r_in]
+    c = closes.to_numpy(dtype=float)[r_out]
+    with np.errstate(divide="ignore", invalid="ignore"):
+        ratio = c / o - 1.0
+    ratio[~np.isfinite(ratio)] = np.nan
+    valid = (~np.isnan(ratio)).sum(axis=1)
+    univ = np.where(valid > 0, np.nansum(ratio, axis=1) / np.maximum(valid, 1), 0.0)
+    return trades.assign(univ=univ)

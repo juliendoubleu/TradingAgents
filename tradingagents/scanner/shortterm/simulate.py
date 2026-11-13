@@ -71,6 +71,10 @@ def simulate_trade(
 ) -> TradeResult:
     """Fill at ``open_[entry_idx]`` and walk the bars until an exit rule fires.
 
+    A stop or target that the fill itself already crosses (a breakout bar followed by an
+    open back through the stop) is not an error: the gap rule fills it at that open,
+    so the decision to trade never depends on the entry bar's price.
+
     ``stop``/``target`` are prices, or callables of the entry price (for rules like
     "1 ATR from the entry", which cannot be priced before the fill). ``exit_on_close``
     flags bars at whose CLOSE the position is closed when neither stop nor target
@@ -84,10 +88,6 @@ def simulate_trade(
         raise ValueError(f"need 0 <= entry_idx <= last_idx < {n}, got {entry_idx}, {last_idx}")
     entry = float(o[entry_idx])
     stop_px, target_px = _level(stop, entry), _level(target, entry)
-    if stop_px is not None and (entry - stop_px) * direction <= 0:
-        raise ValueError("stop must lie on the losing side of the entry price")
-    if target_px is not None and (target_px - entry) * direction < 0:
-        raise ValueError("target must lie on the winning side of the entry price")
 
     exit_idx, exit_px, reason = last_idx, float(c[last_idx]), "time"
     for i in range(entry_idx, last_idx + 1):
