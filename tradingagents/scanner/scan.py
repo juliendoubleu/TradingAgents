@@ -46,12 +46,13 @@ class ScanResult:
     warnings: list[str] = field(default_factory=list)
     top: int = 10
     generated: str = ""
+    custom: bool = False                  # a --tickers list replaced the universe's members
 
     def to_dict(self) -> dict:
         return {
             "universe": self.universe, "description": self.description,
             "benchmark": self.benchmark, "requested_date": self.requested_date,
-            "as_of_date": self.as_of_date, "generated": self.generated,
+            "as_of_date": self.as_of_date, "generated": self.generated, "custom": self.custom,
             "regime": self.regime.to_dict(), "top": self.top,
             "longs": [s.to_dict() for s in self.longs],
             "shorts": [s.to_dict() for s in self.shorts],
@@ -180,6 +181,6 @@ def run_scan(
         requested_date=as_of_date, as_of_date=as_of, regime=regime,
         signals=sorted(signals, key=lambda s: -s.score), longs=longs, shorts=shorts,
         skipped=sorted(skipped), warnings=warnings, top=top,
-        generated=datetime.now().strftime("%Y-%m-%d %H:%M"),
+        generated=datetime.now().strftime("%Y-%m-%d %H:%M"), custom=bool(tickers),
     )
 
