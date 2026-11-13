@@ -5,9 +5,7 @@ import pytest
 from tests.scanner_helpers import END
 from tests.test_scanner_assess import NOW, fake_scan, idea, loader, note, signal
 from tradingagents.dataflows.errors import VendorUnavailableError
-from tradingagents.scanner import aliases
-from tradingagents.scanner import assess as A
-from tradingagents.scanner import ask as K
+from tradingagents.scanner import aliases, ask as K, assess as A
 from tradingagents.scanner.notices import Notice
 from tradingagents.scanner.universe import UNIVERSES
 

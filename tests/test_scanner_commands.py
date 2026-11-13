@@ -13,8 +13,7 @@ from tests.scanner_helpers import END
 from tests.test_scanner_assess import fake_scan, idea, signal
 from tradingagents.dataflows.errors import VendorUnavailableError
 from tradingagents.dataflows.vendors.yahoo import options as yahoo_options
-from tradingagents.scanner import assess as A
-from tradingagents.scanner import events
+from tradingagents.scanner import assess as A, events
 
 
 def _app():
@@ -88,8 +87,7 @@ def test_assess_json_prints_only_json(runner, app):
 def test_assess_bad_input_is_a_red_message_and_exit_1(runner, app, args, message):
     res = runner.invoke(app, args)
     assert res.exit_code == 1 and message in res.output
-    assert "Traceback" not in res.output and res.exception is None or \
-        isinstance(res.exception, SystemExit)
+    assert "Traceback" not in res.output and isinstance(res.exception, SystemExit)
 
 
 @pytest.mark.unit

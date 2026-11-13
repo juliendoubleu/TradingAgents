@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import sys
+from typing import Annotated
 
 import typer
 
@@ -52,8 +53,8 @@ def register(app: typer.Typer) -> None:
 
     @app.command()
     def assess(
-        tickers: list[str] = typer.Argument(
-            ..., help="Tickers or names, space or comma separated: NVDA SAP.DE BTC-USD"),
+        tickers: Annotated[list[str], typer.Argument(
+            help="Tickers or names, space or comma separated: NVDA SAP.DE BTC-USD")],
         date: str = typer.Option(None, "--date", help="As-of date, YYYY-MM-DD (default: today)"),
         options: bool = typer.Option(False, "--options", help="Add option-implied moves (US stocks)"),
         lang: str = typer.Option(None, "--lang", help="Output language, en or de"),
@@ -62,8 +63,7 @@ def register(app: typer.Typer) -> None:
         """Assess instruments per investment horizon, with the evidence behind each statement."""
         from tradingagents.dataflows.errors import VendorError
         from tradingagents.scanner.aliases import resolve
-        from tradingagents.scanner.assess import assess as run_assess
-        from tradingagents.scanner.assess import render_assessment
+        from tradingagents.scanner.assess import assess as run_assess, render_assessment
 
         try:
             language = _lang(lang)
@@ -142,8 +142,7 @@ def register(app: typer.Typer) -> None:
         gets only the run-up so far)."""
         from tradingagents.dataflows.errors import VendorError
         from tradingagents.scanner.aliases import resolve
-        from tradingagents.scanner.events import event_study as run_study
-        from tradingagents.scanner.events import render_event_study
+        from tradingagents.scanner.events import event_study as run_study, render_event_study
 
         try:
             language = _lang(lang)
