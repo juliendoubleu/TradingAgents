@@ -97,7 +97,7 @@ def test_expiry_with_an_unusable_leg_is_skipped(patch_ticker):
 def test_past_expiries_and_max_expiries(patch_ticker):
     exps = [_iso(-3), _iso(0), _iso(5), _iso(12), _iso(19)]
     one = ([(100, 4, 4.2, 4.1)], [(100, 3, 3.2, 3.1)])
-    patch_ticker(FakeTicker(exps, {e: one for e in exps}))
+    patch_ticker(FakeTicker(exps, dict.fromkeys(exps, one)))
     moves = opt.load_implied_moves("TTWO", max_expiries=2)
     assert [m.expiry for m in moves] == [_iso(0), _iso(5)]
     assert moves[0].days_to_expiry == 0
