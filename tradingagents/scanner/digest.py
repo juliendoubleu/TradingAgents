@@ -124,17 +124,17 @@ def _why_text(notes, lang: str) -> str:
     return f"{_x('no_rec', lang)} – {clause}" if clause else _x("no_rec", lang)
 
 
-def _nothing_entries(view: HorizonView, lang: str) -> list[tuple[str, str]]:
-    """``(label, text)`` for each side without an evidenced idea; both sides with the same
-    reason collapse into the horizon alone."""
+def _nothing_entries(view: HorizonView, lang: str) -> list[tuple[str, str | None, str]]:
+    """``(horizon, side, text)`` for each side without an evidenced idea; both sides with the
+    same reason collapse into the horizon alone (``side`` None)."""
     name = horizon_label(view.key, lang)
     missing = [s for s in SIDES if not view.side(s)]
     if not missing:
         return []
     texts = {s: _why_text(view.why[s], lang) for s in missing}
     if len(missing) == 2 and texts["Long"] == texts["Short"]:
-        return [(name, texts["Long"])]
-    return [(f"{name} {s}", texts[s]) for s in missing]
+        return [(name, None, texts["Long"])]
+    return [(name, s, texts[s]) for s in missing]
 
 
 def _avoid_symbols(result: ScanResult, horizons) -> list[str]:
@@ -155,7 +155,7 @@ def _market_lines(result: ScanResult, lang: str, max_per_side: int, watch: bool,
         lines.append(_x("ideas_missing", lang))
     else:
         conflicts = composite_conflicts(result)
-        merged: dict[str, list[str]] = {}
+        merged: dict[str, list[tuple[str, str | None]]] = {}
         for view in horizon_views(result, horizons):
             if view.recs:
                 lines.append(f"{holding_text(view.key, result.ideas.family, lang)}:")
@@ -165,9 +165,13 @@ def _market_lines(result: ScanResult, lang: str, max_per_side: int, watch: bool,
                               for i in ideas[:max_per_side]]
                     if len(ideas) > max_per_side:
                         lines.append(_x("more", lang).format(n=len(ideas) - max_per_side))
-            for label, text in _nothing_entries(view, lang):
-                merged.setdefault(text, []).append(label)
-        lines += [f"{', '.join(labels)}: {text}" for text, labels in merged.items()]
+            for name, side, text in _nothing_entries(view, lang):
+                merged.setdefault(text, []).append((name, side))
+        for text, entries in merged.items():
+            # a line that mixes "both sides" and "one side" must not leave the reader guessing
+            mixed = any(side for _, side in entries)
+            labels = [f"{name} {side or 'Long+Short'}" if mixed else name for name, side in entries]
+            lines.append(f"{', '.join(labels)}: {text}")
     if watch:
         parts = []
         strong = [s.symbol for s in result.longs[:max_per_side]]

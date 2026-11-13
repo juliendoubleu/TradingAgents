@@ -5,11 +5,10 @@ objects directly so a test can state exactly which idea is recommended, watch-on
 "avoid" and what the notes say. Everything is offline and deterministic.
 """
 
-from tradingagents.scanner import horizons as hz
-from tradingagents.scanner import scan as sc
-from tradingagents.scanner.validation import DirectionStats, ValidationResult
-
 from tests.scanner_helpers import END, falling, flat, rising
+from tradingagents.scanner import horizons as hz
+from tradingagents.scanner.scan import run_scan as _real_run_scan
+from tradingagents.scanner.validation import DirectionStats, ValidationResult
 
 STUDY = "2026-11-13"
 
@@ -28,15 +27,16 @@ def loader(symbols, as_of, lookback):
 
 def base_result(universe="us", top=3):
     members = [s for s in frames() if s not in ("SPY", "^VIX")]
-    return sc.run_scan(universe, END, tickers=members, top=top, loader=loader)
+    # the real function, bound at import: a test may patch scan.run_scan afterwards
+    return _real_run_scan(universe, END, tickers=members, top=top, loader=loader)
 
 
 def evidence(label="validated", horizon="long", side="long", **kw):
-    fields = dict(
-        label=label, rule_id="T1", rule_name={"en": "Momentum 12-1", "de": "Momentum 12-1"},
-        family="stocks_us", horizon=horizon, side=side, study_date=STUDY, judged="long_excess",
-        oos_n=44, oos_mean_bps=597.0, oos_t=2.2, is_t=2.5, window=("2022-01-03", "2026-06-30"),
-        n_rules_tested=7)
+    fields = {
+        "label": label, "rule_id": "T1", "rule_name": {"en": "Momentum 12-1", "de": "Momentum 12-1"},
+        "family": "stocks_us", "horizon": horizon, "side": side, "study_date": STUDY,
+        "judged": "long_excess", "oos_n": 44, "oos_mean_bps": 597.0, "oos_t": 2.2, "is_t": 2.5,
+        "window": ("2022-01-03", "2026-06-30"), "n_rules_tested": 7}
     fields.update(kw)
     return hz.Evidence(**fields)
 

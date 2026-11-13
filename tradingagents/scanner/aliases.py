@@ -175,7 +175,6 @@ _ENTRIES: list[tuple[str, str, tuple[str, ...]]] = [
     ("TTWO", "Take-Two Interactive", ("take-two", "take two", "take-two interactive", "ttwo")),
     ("SONY", "Sony", ("sony",)),
     ("GME", "GameStop", ("gamestop",)),
-    ("EA", "Electronic Arts", ("electronic arts",)),
     ("NTDOY", "Nintendo (ADR)", ("nintendo",)),
     ("INTC", "Intel", ("intel",)),
     ("TSM", "TSMC", ("tsmc", "taiwan semiconductor")),

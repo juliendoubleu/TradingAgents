@@ -24,6 +24,7 @@ from tradingagents.scanner.assess import (
     HORIZON_ORDER,
     Assessment,
     Loader,
+    _score,
     assess,
     label_text,
     render_body,
@@ -255,14 +256,14 @@ def _fallback(p: ParsedQuestion, lang: str, failed: list[str]) -> str:
         f"- `{CMD} event-study TTWO --dates \"2018-10-26:Red Dead Redemption 2\" --lang de`\n"
         f"- `{CMD} implied-move TTWO --lang de`\n"
         f"- `{CMD} scan --universe us --lang de`: die Lage im ganzen Markt\n"
-        "Nenne Instrumente beim Namen oder Symbol (z. B. „Nvidia\", „SAP\", „Bitcoin\", "
+        "\nNenne Instrumente beim Namen oder Symbol (z. B. „Nvidia\", „SAP\", „Bitcoin\", "
         "„Gold\", „TTWO\"), dann antworte ich mit den Daten.",
         "**Building blocks:**\n"
         f"- `{CMD} assess NVDA SAP.DE`: assessment and comparison per horizon\n"
         f"- `{CMD} event-study TTWO --dates \"2018-10-26:Red Dead Redemption 2\"`\n"
         f"- `{CMD} implied-move TTWO`\n"
         f"- `{CMD} scan --universe us`: the picture of the whole market\n"
-        "Name instruments by name or symbol (e.g. \"Nvidia\", \"SAP\", \"Bitcoin\", \"gold\", "
+        "\nName instruments by name or symbol (e.g. \"Nvidia\", \"SAP\", \"Bitcoin\", \"gold\", "
         "\"TTWO\") and I answer from the data.", lang))
     lines.append(f"**{_t('Keine Anlageberatung.', 'Not investment advice.', lang)}**")
     return "\n\n".join(lines) + "\n"
@@ -290,6 +291,38 @@ def _short_lines(a: Assessment, horizons: list[str], lang: str) -> list[str]:
             notes = [n.text(lang) for n in view.notes if n.params.get("side") == "short"]
             out.append(f"- {lab}, {t.name}: " + (" ".join(notes[:1]) if notes else
                        _t("kein Short-Signal.", "no Short signal.", lang)))
+    return out
+
+
+def _short_leads(a: Assessment, horizons: list[str], lang: str) -> list[str]:
+    """One lead per horizon for a Short question: is there an evidenced Short, and what is
+    the technical picture (a Long picture speaks against a Short, a weak one is no proof)."""
+    out: list[str] = []
+    for h in horizons:
+        parts = []
+        for t in a.tickers:
+            if t.error is not None:
+                continue
+            view = t.views.get(h)
+            shorts = [i for i in (view.ideas if view else []) if i.direction == "Short"]
+            if shorts and not shorts[0].watch_only:
+                verdict = _t(f"Short-Empfehlung ({label_text(shorts[0].evidence.label, lang)})",
+                             f"Short recommendation ({label_text(shorts[0].evidence.label, lang)})",
+                             lang)
+            elif shorts:
+                verdict = _t("keine belegte Short-Empfehlung, nur auf der Short-Beobachtungsliste",
+                             "no evidenced Short recommendation, only on the Short watch list",
+                             lang)
+            else:
+                verdict = _t("keine belegte Short-Empfehlung und aktuell auch kein Short-Signal",
+                             "no evidenced Short recommendation and currently no Short signal",
+                             lang)
+            tech = "" if t.signal is None else _t(
+                f" (technisches Bild: {t.signal.direction}, Score {_score(t.signal.score, lang)})",
+                f" (technical picture: {t.signal.direction}, score "
+                f"{_score(t.signal.score, lang)})", lang)
+            parts.append(f"{t.name}: {verdict}{tech}")
+        out.append(f"{HORIZONS[h].label[lang]}: " + "; ".join(parts) + ".")
     return out
 
 
@@ -321,7 +354,10 @@ def answer_question(
         return Answer(_fallback(parsed, lang, failed), parsed, a)
 
     horizons = parsed.horizons or ["medium", "long"]
-    leads = [s for s in a.summary_items if s.params["horizon"] in horizons]
+    if parsed.intent == "short":
+        leads = _short_leads(a, horizons, lang)
+    else:
+        leads = [s.text(lang) for s in a.summary_items if s.params["horizon"] in horizons]
     parts = ["## " + _t("Antwort", "Answer", lang), _understood(parsed, lang)]
     if failed:
         parts.append(_t(f"Keine Kursdaten gefunden für: {', '.join(failed)}.",
@@ -333,7 +369,7 @@ def answer_question(
                        "Whether to hold depends on your situation. This is what the data say:",
                        lang)}.get(parsed.intent, "")
     parts.append(f"**{_t('Kurzantwort', 'Short answer', lang)}**" + (f"\n{head}" if head else "")
-                 + "\n" + "\n".join(f"- {s.text(lang)}" for s in leads))
+                 + "\n" + "\n".join(f"- {line}" for line in leads))
     if parsed.intent in ("short", "sell"):
         lines = _short_lines(a, horizons, lang)
         if lines:
@@ -341,7 +377,12 @@ def answer_question(
                          + "\n".join(lines) + "\n"
                          + _t("Bei einem Short ist der Verlust nicht auf den Einsatz begrenzt.",
                               "With a short the loss is not limited to the amount staked.", lang))
-    parts.append(render_body(a, lang))
+    parts.append(render_body(a, lang, horizons))
+    if len(horizons) < len(HORIZON_ORDER):
+        symbols = " ".join(t.symbol for t in a.tickers if t.error is None)
+        parts.append(_t(f"Alle Horizonte (auch Daytrade und Swing): `{CMD} assess {symbols} "
+                        "--lang de`.", f"All horizons (day trade and swing too): `{CMD} assess "
+                        f"{symbols}`.", lang))
     if parsed.event_like:
         parts.append(_event_note(lang))
     return Answer("\n\n".join(parts) + "\n", parsed, a)

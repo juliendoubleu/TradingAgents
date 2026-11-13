@@ -189,7 +189,10 @@ def test_short_question_shows_the_short_evidence_and_the_risk(monkeypatch):
     assert "**Zur Short-Seite**" in ans.text
     assert shorts[0].evidence.text("de") in ans.text.split("**Zur Short-Seite**")[1]
     assert "nur Short-Beobachtung" in ans.text and "Verlust nicht auf den Einsatz begrenzt" in ans.text
-    assert "Short-Empfehlung" not in ans.text
+    lead = ans.text.split("**Kurzantwort**")[1].split("\n\n")[0]
+    assert "Mittelfristig: Tesla (TSLA): keine belegte Short-Empfehlung, nur auf der " \
+        "Short-Beobachtungsliste (technisches Bild: Short, Score -60)" in lead
+    assert "Short-Empfehlung (" not in ans.text and "Short recommendation" not in ans.text
 
 
 @pytest.mark.unit
@@ -290,3 +293,29 @@ def test_answer_to_dict_is_json_safe(monkeypatch):
     ans = K.answer_question("NVDA?", as_of_date=END, loader=loader, now=NOW)
     data = json.loads(json.dumps(ans.to_dict()))
     assert data["parsed"]["tickers"] == ["NVDA"] and data["assessment"]["tickers"]
+
+
+@pytest.mark.unit
+def test_short_lead_says_when_the_technical_picture_is_long(monkeypatch):
+    monkeypatch.setattr(A, "run_scan", _scan([signal("TSLA", 38.0)], []))
+    text = K.answer_question("Lohnt sich ein Short auf Tesla?", as_of_date=END, loader=loader,
+                             now=NOW).text
+    lead = text.split("**Kurzantwort**")[1].split("\n\n")[0]
+    assert "keine belegte Short-Empfehlung und aktuell auch kein Short-Signal " \
+        "(technisches Bild: Long, Score +38)" in lead
+    assert "Langfristig" in lead
+
+
+@pytest.mark.unit
+def test_answer_shows_only_the_asked_horizons_and_points_to_the_rest(monkeypatch):
+    monkeypatch.setattr(A, "run_scan", _scan(
+        [signal("AAA", 50.0)], [idea("AAA", "long", label="validated"), idea("AAA", "medium")],
+        notes=[note("day", None)]))
+    text = K.answer_question("Soll ich AAA auf 3 Monate kaufen?", as_of_date=END, loader=loader,
+                             now=NOW).text
+    assert "Mittelfristig: nur Beobachtung" in text and "Langfristig: Empfehlung" not in text
+    assert "Zu den kurzen Horizonten" not in text
+    assert "assess AAA --lang de" in text
+    full = K.answer_question("AAA heute, kurzfristig, 3 Monate, 12 Monate", as_of_date=END,
+                             loader=loader, now=NOW).text
+    assert "Langfristig: Empfehlung Long" in full and "assess AAA" not in full

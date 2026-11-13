@@ -118,10 +118,10 @@ def _tech_clause(entries: list[dict], lang: str) -> str:
                   f"gegen {_score(bottom['score'], lang)})",
                   f"technically {top['name']} is stronger (score {_score(top['score'], lang)} "
                   f"against {_score(bottom['score'], lang)})", lang)
-    return _t(f"technisch am stärksten ist {top['name']} (Score {_score(top['score'], lang)}), "
-              f"am schwächsten {bottom['name']} ({_score(bottom['score'], lang)})",
-              f"technically strongest is {top['name']} (score {_score(top['score'], lang)}), "
-              f"weakest {bottom['name']} ({_score(bottom['score'], lang)})", lang)
+    return _t(f"technisch am stärksten: {top['name']}, Score {_score(top['score'], lang)}, "
+              f"am schwächsten: {bottom['name']}, Score {_score(bottom['score'], lang)}",
+              f"technically strongest: {top['name']}, score {_score(top['score'], lang)}, "
+              f"weakest: {bottom['name']}, score {_score(bottom['score'], lang)}", lang)
 
 
 def _single_text(h: str, e: dict, lang: str) -> str:
@@ -451,10 +451,11 @@ def _plan_line(idea: Idea, lang: str) -> str:
     return "; ".join([*parts, ref])
 
 
-def _horizon_lines(t: TickerAssessment, lang: str) -> list[str]:
+def _horizon_lines(t: TickerAssessment, lang: str,
+                   horizons: tuple[str, ...] = HORIZON_ORDER) -> list[str]:
     lines: list[str] = []
     quiet: list[str] = []
-    for h in HORIZON_ORDER:
+    for h in horizons:
         view = t.views.get(h)
         if view is None:
             continue
@@ -505,7 +506,8 @@ def _snapshot_line(s: Snapshot | None, lang: str) -> str:
     return " | ".join(parts)
 
 
-def _ticker_block(t: TickerAssessment, lang: str) -> str:
+def _ticker_block(t: TickerAssessment, lang: str,
+                  horizons: tuple[str, ...] = HORIZON_ORDER) -> str:
     out = [f"### {t.name}"]
     if t.error is not None:
         out.append(_t(f"Keine Einschätzung möglich: {t.error.text('de')}. "
@@ -533,7 +535,7 @@ def _ticker_block(t: TickerAssessment, lang: str) -> str:
                       f"{_score(s.score, lang)} von ±100, Überzeugung {conv}. {reasons}.",
                       f"**Technical picture (no measured edge):** {direction}, score "
                       f"{_score(s.score, lang)} of ±100, conviction {conv}. {reasons}.", lang))
-    out.append("\n".join(_horizon_lines(t, lang)))
+    out.append("\n".join(_horizon_lines(t, lang, horizons)))
     line = _snapshot_line(t.snapshot, lang)
     if line:
         out.append(line)
@@ -577,14 +579,20 @@ def disclaimer(lang: str = "en") -> str:
               "not predict what comes next.", lang)
 
 
-def render_body(a: Assessment, lang: str = "en") -> str:
-    """The per-ticker blocks, warnings, legend and disclaimer (no title, no summary)."""
+def render_body(a: Assessment, lang: str = "en",
+                horizons: tuple[str, ...] | list[str] | None = None) -> str:
+    """The per-ticker blocks, warnings, legend and disclaimer (no title, no summary).
+
+    ``horizons`` limits the per-horizon lines (and the notes on the short horizons) to the
+    ones asked about; the default shows all four.
+    """
+    shown = tuple(h for h in HORIZON_ORDER if horizons is None or h in horizons)
     parts = [_regime_line(a, lang)]
     parts.extend(w.text(lang) for w in a.warnings)
-    parts.extend(_ticker_block(t, lang) for t in a.tickers)
+    parts.extend(_ticker_block(t, lang, shown) for t in a.tickers)
     notes: list[str] = []
     for t in a.tickers:
-        for h in ("day", "swing"):
+        for h in (h for h in ("day", "swing") if h in shown):
             view = t.views.get(h)
             if view is not None and view.status == "none":
                 notes.extend(n.text(lang) for n in view.notes if n.params.get("side") is None)
