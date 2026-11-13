@@ -83,7 +83,8 @@ def test_watch_names_are_labelled_not_proven_and_avoid_is_not_a_short():
     result = result_with(
         [idea("AVO", "Short", "medium", "relative", stance="avoid")], [day_note()])
     d = dg.build_digest([result], "de", now=NOW)
-    assert "Beobachten (nicht belegt): stark UP2" in d.body and "schwach DN2" in d.body
+    assert ("Keine belegte Empfehlung. Technisches Bild (nicht belegt): stark UP2" in d.body
+            and "schwach DN2" in d.body)
     assert "Meiden / untergewichten (relativ belegt): AVO" in d.body
     assert "SHORT AVO" not in d.body and d.headline.startswith("Keine belegte Empfehlung")
 

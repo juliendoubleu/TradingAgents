@@ -27,7 +27,7 @@ from tradingagents.scanner.assess import (
     _score,
     assess,
     label_text,
-    render_body,
+    render_compact,
 )
 from tradingagents.scanner.horizons import HORIZONS
 
@@ -377,7 +377,7 @@ def answer_question(
                          + "\n".join(lines) + "\n"
                          + _t("Bei einem Short ist der Verlust nicht auf den Einsatz begrenzt.",
                               "With a short the loss is not limited to the amount staked.", lang))
-    parts.append(render_body(a, lang, horizons))
+    parts.append(render_compact(a, lang, horizons))
     if len(horizons) < len(HORIZON_ORDER):
         symbols = " ".join(t.symbol for t in a.tickers if t.error is None)
         parts.append(_t(f"Alle Horizonte (auch Daytrade und Swing): `{CMD} assess {symbols} "

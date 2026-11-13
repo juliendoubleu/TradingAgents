@@ -95,7 +95,7 @@ def evidenced_result(universe="us", symbols=("UP2", "UP1", "UP0")):
     ideas = [idea(s, rank=i) for i, s in enumerate(symbols, 1)]
     notes = [day_note(15), rules_note("medium", "long"), rules_note("medium", "short"),
              rules_note("long", "short", 7),
-             note("idea_beta_only", "swing", None, n=9, rules="S3l", date="2026-11-12")]
+             note("idea_beta_only", "swing", None, n=9, rules_en="Volume breakout, long side only", rules_de="Ausbruch mit Volumen, nur Long", date="2026-11-12")]
     return result_with(ideas, notes, universe)
 
 

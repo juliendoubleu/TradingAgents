@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 
+from tradingagents.scanner.fmt import format_text
 from tradingagents.scanner.indicators import pct_return, sma
 
 RISK_ON_AT = 3
@@ -75,8 +76,8 @@ class MarketRegime:
     def describe(self, lang: str = "en") -> list[str]:
         """Each fact as a sentence with its points, e.g. ``... (+1)``."""
         return [
-            _TEXT[f.key].get(lang, _TEXT[f.key]["en"]).format(v=f.value, bench=self.benchmark)
-            + f" ({f.points:+d})"
+            format_text(_TEXT[f.key].get(lang, _TEXT[f.key]["en"]), lang, v=f.value,
+                        bench=self.benchmark) + f" ({f.points:+d})"
             for f in self.facts
         ] + ([] if self.vix_used else [_VIX_UNUSED.get(lang, _VIX_UNUSED["en"])])
 

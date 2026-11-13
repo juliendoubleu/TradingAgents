@@ -114,6 +114,11 @@ _DESCRIPTION_DE = {
 }
 _FAMILY = {"us": "stocks_us", "dax": "stocks_dax", "sectors": "etfs", "global": "etfs",
            "crypto": "crypto", "all": "mixed"}
+# A custom list keeps the named universe's evidence only while it still IS that universe:
+# at least this share of its members is in the list, and at most this share of the list is
+# not one of them (the "universe plus the tickers asked about" case of ``assess``).
+KEEP_MIN_SHARE = 0.80
+EXTRA_MAX_SHARE = 0.20
 # The US VIX says nothing about DAX stocks or coins, so those universes do not use it.
 _USE_VIX = {"us", "sectors", "global", "all"}
 
@@ -135,20 +140,47 @@ class UniverseInfo:
     bars_per_year: int
     month_bars: int
     use_vix: bool
+    studied: tuple[str, ...] = ()     # members that belong to the studied universe
+
+    def is_extra(self, symbol: str) -> bool:
+        """True for a member of a custom list that the studies never saw."""
+        return bool(self.studied) and symbol not in self.studied
+
+
+def _keeps_family(named: list[str], listed: list[str]) -> bool:
+    """Does ``listed`` still stand for the named universe (see ``KEEP_MIN_SHARE``)?"""
+    if not named or not listed:
+        return False
+    have = set(listed)
+    kept = sum(1 for m in named if m in have) / len(named)
+    extras = sum(1 for m in listed if m not in set(named)) / len(listed)
+    return kept >= KEEP_MIN_SHARE and extras <= EXTRA_MAX_SHARE
 
 
 def universe_info(name: str, tickers: list[str] | None = None) -> UniverseInfo:
-    """Metadata for a named universe; ``tickers`` replaces the members as in ``resolve_universe``."""
+    """Metadata for a named universe; ``tickers`` replaces the members as in ``resolve_universe``.
+
+    The family decides which study's evidence a list inherits.  A custom list keeps the
+    named universe's family only while it is still essentially that universe (at least 80 %
+    of its members, at most 20 % extras); an eight-name list called "us" is not the 61
+    large caps that were studied, so its family is ``custom`` and nothing about it is
+    evidenced.  The calendar (crypto trades every day) and the VIX rule follow the named
+    universe either way.
+    """
     description, benchmark, members = resolve_universe(name, tickers)
     key = name.strip().lower()
+    named = list(UNIVERSES[key][2])
+    family = _FAMILY[key]
+    studied = tuple(named)
     if tickers:
-        description_map = {"en": description,
-                           "de": f"Eigene Liste ({len(members)} Ticker)"}
+        description_map = {"en": description, "de": f"Eigene Liste ({len(members)} Ticker)"}
+        if not _keeps_family(named, members):
+            family, studied = "custom", ()
     else:
         description_map = {"en": description, "de": _DESCRIPTION_DE[key]}
     crypto = _FAMILY[key] == "crypto"
     return UniverseInfo(
         name=key, description=description_map, benchmark=benchmark, members=members,
-        family=_FAMILY[key], bars_per_year=365 if crypto else 252,
-        month_bars=30 if crypto else 21, use_vix=key in _USE_VIX,
+        family=family, bars_per_year=365 if crypto else 252,
+        month_bars=30 if crypto else 21, use_vix=key in _USE_VIX, studied=studied,
     )

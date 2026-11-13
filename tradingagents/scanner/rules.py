@@ -65,7 +65,7 @@ _DEFAULTS: dict[str, dict] = {
 
 RULES: dict[str, RuleSpec] = {r.id: r for r in [
     RuleSpec(
-        "T0", "T0", "Technical composite (baseline)", "Technischer Gesamtscore (Basis)",
+        "T0", "T0", "Technical overall picture", "Technisches Gesamtbild",
         "The scanner's own score (trend, momentum, relative strength, MACD, RSI, volume) "
         "with the regime thresholds.",
         "Der Gesamtscore des Scanners (Trend, Momentum, relative Stärke, MACD, RSI, Volumen) "

@@ -1,6 +1,8 @@
 """Ideas per horizon with an honest evidence label: selection, fallbacks, notes, wording."""
 
+import dataclasses
 import json
+from datetime import date
 
 import numpy as np
 import pytest
@@ -27,9 +29,17 @@ def _frames(seed=2):
     return out
 
 
+def _studied_info(universe="us", tickers=NAMES):
+    """The test names stand in for the studied universe (a bare custom list would be
+    ``custom`` and not studied at all: see ``test_a_custom_list_does_not_inherit_...``)."""
+    info = universe_info(universe, tickers)
+    family = {"us": "stocks_us", "dax": "stocks_dax", "all": "mixed"}[universe]
+    return dataclasses.replace(info, family=family, studied=tuple(tickers))
+
+
 def _setup(universe="us"):
     frames = _frames()
-    info = universe_info(universe, NAMES)
+    info = _studied_info(universe)
     regime, signals, _ = analyse(NAMES, frames, "SPY", params=SignalParams(), use_vix=True)
     return info, frames, signals, regime
 
@@ -74,7 +84,7 @@ def build_ideas_for(info, frames, signals, regime, entries, short=QUIET_SHORT, t
                     family="stocks_us", snap=None):
     return hz.build_ideas(info, frames, signals, regime,
                           evidence_snapshot=snap if snap is not None else _snap(entries, family),
-                          shortterm_snapshot=short, top=top)
+                          shortterm_snapshot=short, top=top, today=date(2026, 11, 14))
 
 
 @pytest.mark.unit
@@ -103,32 +113,30 @@ def test_validated_rule_members_come_from_the_same_rule_code_as_the_study():
                           [_entry("T1", "medium", "long", "validated")], top=3)
     ideas = out.select("medium", "Long")
     panel = rules.Panel(frames, NAMES, "SPY", SignalParams())
-    expect = [m[0] for m in rules.current_members("T1", panel) if m[1] == 1][:3]
+    expect = [m[0] for m in rules.current_members("T1", panel) if m[1] == 1]
     assert [i.symbol for i in ideas] == expect and len(ideas) == 2      # 20 % of 10 names
     first = ideas[0]
     assert first.rule_id == "T1" and first.evidence.label == "validated"
     assert first.watch_only is False and first.stance == "recommended"
     assert first.reference_date == str(panel.index[-1].date())
     assert first.reference_price == pytest.approx(float(panel.close[first.symbol].iloc[-1]))
-    atr = float(panel.atr()[first.symbol].iloc[-1])
-    assert first.stop == pytest.approx(first.reference_price - 2.5 * atr)      # medium stop
-    assert first.target is None and first.entry["de"] == "zur nächsten Eröffnung"
-    assert first.size_pct == pytest.approx(min(10.0, 1.0 / (2.5 * atr / first.reference_price)))
+    # a time-exit rule was measured without a stop: none is suggested, the size is equal weight
+    assert first.stop is None and first.target is None
+    assert first.entry["de"] == "zur nächsten Eröffnung"
+    assert first.size_pct == pytest.approx(min(10.0, 100.0 / 2)) and first.basket_size == 2
+    assert "keinen Stop" in first.size_note["de"] and "no stop" in first.size_note["en"]
     assert first.holding["de"].startswith("Mittelfristig")
     assert any(code == "rule_momentum" for code, _ in first.reason_items)
     assert first.reasons_text("de") and first.reasons_text("en")
 
 
 @pytest.mark.unit
-def test_long_horizon_uses_the_wider_stop_and_the_half_year_holding():
+def test_long_horizon_has_no_stop_either_and_the_half_year_holding():
     info, frames, signals, regime = _setup()
     out = build_ideas_for(info, frames, signals, regime,
                           [_entry("T1", "long", "long", "validated")], top=2)
     idea = out.select("long", "Long")[0]
-    panel = rules.Panel(frames, NAMES, "SPY", SignalParams())
-    atr = float(panel.atr()[idea.symbol].iloc[-1])
-    assert idea.stop == pytest.approx(idea.reference_price - 4.0 * atr)
-    assert "6 Monate" in idea.holding["de"]
+    assert idea.stop is None and "6 Monate" in idea.holding["de"]
 
 
 @pytest.mark.unit
@@ -136,11 +144,14 @@ def test_without_evidence_the_composite_becomes_an_unproven_watch_list():
     info, frames, signals, regime = _setup()
     out = build_ideas_for(info, frames, signals, regime,
                           [_entry("T0", "medium", "long", "unproven", oos_t=-0.4, oos_mean=-5.0)])
-    for horizon in ("medium", "long"):
-        for ideas in (out.select(horizon, "Long"), out.select(horizon, "Short")):
-            assert ideas, (horizon, "composite names exist in this market")
-            assert all(i.watch_only and i.evidence.label == "unproven" and i.rule_id == "T0"
-                       and i.stance == "watch" for i in ideas)
+    for ideas in (out.select("medium", "Long"), out.select("medium", "Short")):
+        assert ideas, "composite names exist in this market"
+        assert all(i.watch_only and i.evidence.label == "unproven" and i.rule_id == "T0"
+                   and i.stance == "watch" for i in ideas)
+        # a watch item is no plan: no entry, no stop, no size
+        assert all(i.entry == {} and i.stop is None and i.size_pct is None for i in ideas)
+    # the composite was never tested at the long horizon: its names are not listed there
+    assert out.select("long") == []
     medium_long = out.select("medium", "Long")[0]
     assert medium_long.evidence.oos_t == pytest.approx(-0.4)          # the composite's own numbers
     assert "Nicht belegt" in medium_long.evidence.text("de")
@@ -184,7 +195,7 @@ def test_swing_idea_that_only_earns_the_drift_is_labelled_beta(monkeypatch):
     out = build_ideas_for(info, frames, signals, regime, [], short=short)
     swing = out.select("swing")
     assert len(swing) == 1 and swing[0].evidence.label == "beta" and swing[0].watch_only
-    assert swing[0].size_pct == pytest.approx(10.0 if 1.0 / 0.05 > 10 else 1.0 / 0.05)
+    assert swing[0].size_pct is None and swing[0].stop is None and swing[0].entry == {}
     text = swing[0].evidence.text("de")
     assert "Markt-Beta" in text and "655" in text
     note = next(n for n in out.notes if n.code == "idea_beta_only")
@@ -248,7 +259,7 @@ def test_a_validated_rule_that_selects_nobody_gets_a_note_not_filler():
                           [_entry("T3", "medium", "short", "validated")])
     assert out.select("medium", "Short") == []
     note = next(n for n in out.notes if n.code == "idea_no_members")
-    assert note.params["rule"] == "T3" and "wählt aktuell kein" in note.text("de")
+    assert note.params["rule_de"] == "Regel T3" and "wählt aktuell kein" in note.text("de")
 
 
 @pytest.mark.unit
@@ -313,7 +324,8 @@ def test_run_scan_carries_the_ideas_and_survives_a_failing_idea_layer(monkeypatc
     def load(symbols, as_of, lookback):
         return {s: frames[s] for s in symbols if s in frames}
     res = sc.run_scan("us", END, tickers=NAMES, loader=load)
-    assert res.ideas is not None and res.ideas.family == "stocks_us"
+    assert res.ideas is not None and res.ideas.family == "custom"      # 10 names are not the universe
+    assert res.descriptions["de"] == "Eigene Liste (10 Ticker)" and res.describe("de")
     assert res.to_dict()["ideas"]["ideas"] is not None and json.dumps(res.to_dict())
     assert res.longs is not None                                     # composite stays
 
@@ -322,3 +334,148 @@ def test_run_scan_carries_the_ideas_and_survives_a_failing_idea_layer(monkeypatc
     monkeypatch.setattr(sc, "build_ideas", boom)
     res = sc.run_scan("us", END, tickers=NAMES, loader=load)
     assert res.ideas is None and res.to_dict()["ideas"] is None and res.signals
+
+
+# ------------------------------------------------------------------ the review's corrections
+
+
+@pytest.mark.unit
+def test_a_custom_list_does_not_inherit_the_named_universes_evidence():
+    eight = ["AAPL", "KO", "PEP", "JNJ", "XOM", "CVX", "PG", "WMT"]
+    assert universe_info("us", eight).family == "custom" and universe_info("us", eight).studied == ()
+    full = universe_info("us").members
+    plus = universe_info("us", [*full, "SAP.DE", "PLTR"])         # the universe plus the asked tickers
+    assert plus.family == "stocks_us" and plus.is_extra("PLTR") and not plus.is_extra("AAPL")
+    assert universe_info("us", full[:50]).family == "stocks_us"   # 50 of 61 = 82 %
+    assert universe_info("us", full[:45]).family == "custom"      # 74 %: not the universe any more
+    many = universe_info("us", [*full, *[f"X{i}" for i in range(20)]])
+    assert many.family == "custom"                                # 20 of 81 extras: 25 %
+    assert universe_info("crypto", ["BTC-USD", "ETH-USD"]).family == "custom"
+    assert universe_info("crypto").family == "crypto" and universe_info("global").family == "etfs"
+    # and the ideas of such a list are all "not studied", never "validated XOM"
+    info = universe_info("us", eight)
+    frames = {s: frame(100 * np.exp(np.cumsum(np.random.default_rng(i).normal(0, 0.01, 400))))
+              for i, s in enumerate(eight)}
+    frames["SPY"] = rising(400, 0.0004)
+    frames["^VIX"] = frame(np.full(400, 15.0))
+    signals = analyse(eight, frames, "SPY", params=SignalParams(), use_vix=True)[1]
+    snap = _snap([_entry("T1", "medium", "long", "validated")])
+    out = hz.build_ideas(info, frames, signals, evidence_snapshot=snap, shortterm_snapshot=QUIET_SHORT)
+    assert out.recommended() == [] and all(
+        i.evidence.label == "not_studied" for i in out.select("medium"))
+    assert out.select("long") == []
+
+
+@pytest.mark.unit
+def test_an_extra_ticker_may_be_ranked_but_says_it_was_not_studied():
+    info, frames, signals, regime = _setup()
+    info = dataclasses.replace(info, studied=tuple(NAMES[1:]))     # S0 is the asked extra
+    out = hz.build_ideas(info, frames, signals, regime, shortterm_snapshot=QUIET_SHORT, top=10,
+                         evidence_snapshot=_snap([_entry("T1", "medium", "long", "validated"),
+                                                  _entry("T1", "medium", "short", "validated")]))
+    extra = [i for i in out.ideas if i.symbol == "S0" and i.horizon == "medium"]
+    others = [i for i in out.select("medium") if i.symbol != "S0"]
+    assert extra and all("nicht zum untersuchten Universum" in i.outside["de"] for i in extra)
+    assert others and all(i.outside is None for i in others)
+
+
+@pytest.mark.unit
+def test_the_whole_measured_basket_is_shown_not_the_first_ten():
+    names = [f"B{i}" for i in range(40)]
+    rng = np.random.default_rng(9)
+    frames = {n: frame(100 * np.exp(np.cumsum(rng.normal(0.0006 * (i - 20) / 20, 0.01, N))))
+              for i, n in enumerate(names)}
+    frames["SPY"] = rising(N, 0.0004)
+    frames["^VIX"] = frame(np.full(N, 15.0))
+    info = _studied_info("us", names)
+    signals = analyse(names, frames, "SPY", params=SignalParams(), use_vix=True)[1]
+    out = hz.build_ideas(info, frames, signals, evidence_snapshot=_snap(
+        [_entry("T1", "medium", "long", "validated")]), shortterm_snapshot=QUIET_SHORT, top=3,
+        today=date(2026, 11, 14))
+    longs = out.select("medium", "Long")
+    assert len(longs) == 8 > 3                                    # 20 % of 40: top does not cut it
+    assert all(i.basket_size == 8 and i.size_pct == pytest.approx(10.0) for i in longs)
+
+
+@pytest.mark.unit
+def test_the_idea_says_where_the_technical_picture_disagrees():
+    info, frames, signals, regime = _setup()
+    out = build_ideas_for(info, frames, signals, regime,
+                          [_entry("T1", "medium", "long", "validated")])
+    direction = {s.symbol: s.direction for s in signals}
+    for idea in out.select("medium", "Long"):
+        if direction[idea.symbol] == "Short":
+            assert "Technisch aktuell schwach" in idea.conflict["de"]
+            assert "Technically weak right now" in idea.conflict["en"]
+        else:
+            assert idea.conflict is None
+
+
+@pytest.mark.unit
+def test_a_study_older_than_120_days_marks_every_label_stale_with_a_note():
+    info, frames, signals, regime = _setup()
+    snap = _snap([_entry("T1", "medium", "long", "validated")])
+    fresh = hz.build_ideas(info, frames, signals, regime, evidence_snapshot=snap,
+                           shortterm_snapshot=QUIET_SHORT, today=date(2026, 11, 14))
+    assert fresh.study_age_days == 1 and fresh.stale is False
+    assert not any(i.evidence.stale for i in fresh.ideas)
+    old = hz.build_ideas(info, frames, signals, regime, evidence_snapshot=snap,
+                         shortterm_snapshot=QUIET_SHORT, today=date(2027, 3, 20))
+    assert old.study_age_days == 127 and old.stale is True
+    assert all(i.evidence.stale for i in old.ideas if i.horizon in ("medium", "long"))
+    idea = old.select("medium", "Long")[0]
+    assert "127 Tage alt: veraltet" in idea.evidence.text("de")
+    assert "stale" in idea.evidence.text("en")
+    note = next(n for n in old.notes if n.code == "idea_stale")
+    assert "127 Tage" in note.text("de") and "veraltet nach 120" in note.text("de")
+    assert json.dumps(old.to_dict())
+
+
+@pytest.mark.unit
+def test_the_caveat_of_a_result_that_hangs_on_a_few_names_is_part_of_the_evidence_text():
+    caveat = {"de": "Ergebnis hängt an 3 Aktien (NVDA, AVGO, AMD), die in der Liste stehen, weil "
+                    "sie gestiegen sind; ohne sie t = 1,8",
+              "en": "The result depends on 3 stocks (NVDA, AVGO, AMD) that are in the list because "
+                    "they went up; without them t = 1.8",
+              "short_de": "hängt an NVDA, AVGO, AMD", "short_en": "depends on NVDA, AVGO, AMD"}
+    ev = hz.Evidence(label="experimental", judged="long_excess", horizon="long", oos_n=44,
+                     oos_mean_bps=300.0, oos_t=1.4, window=("2022-09-21", "2026-04-29"),
+                     caveat=caveat, robust=False)
+    assert ev.text("de").endswith("t = 1,8") and "Achtung: Ergebnis hängt an 3 Aktien" in ev.text("de")
+    assert "Caution: The result depends on 3 stocks" in ev.text("en")
+    assert ev.to_dict()["caveat"] == caveat and ev.to_dict()["robust"] is False
+    plain = dataclasses.replace(ev, caveat=None)
+    assert "Achtung" not in plain.text("de")
+    info, frames, signals, regime = _setup()
+    entry = _entry("T1", "long", "long", "experimental")
+    entry.update(robust=False, caveat=caveat)
+    out = build_ideas_for(info, frames, signals, regime, [entry])
+    assert "hängt an 3 Aktien" in out.select("long", "Long")[0].evidence.text("de")
+
+
+@pytest.mark.unit
+def test_a_rule_that_failed_the_robustness_check_is_named_in_a_note_not_recommended():
+    info, frames, signals, regime = _setup()
+    entry = _entry("T1", "long", "long", "unproven")
+    entry.update(robust=False, caveat={"de": "Ergebnis hängt an 3 Aktien (A, B, C); ohne sie t = 1,2",
+                                       "en": "The result depends on 3 stocks (A, B, C); without them t = 1.2"})
+    out = build_ideas_for(info, frames, signals, regime, [entry])
+    assert out.recommended() == [] and out.select("long") == []
+    note = next(n for n in out.notes if n.code == "idea_robust_failed")
+    assert "zählt aber nicht" in note.text("de") and "hängt an 3 Aktien" in note.text("de")
+
+
+@pytest.mark.unit
+def test_the_size_note_quotes_the_stop_mode_result_of_the_study():
+    info, frames, signals, regime = _setup()
+    entry = _entry("T1", "long", "long", "validated")
+    entry["stop"] = {"long_excess": {"OOS": {"mean_bps": -193.0}, "IS": {"mean_bps": -186.0}}}
+    entry["series"]["long_excess"]["OOS"]["mean_bps"] = 597.0
+    snap = _snap([entry])
+    snap["stop_atr"] = {"medium": 2.5, "long": 4.0}
+    out = build_ideas_for(info, frames, signals, regime, [], snap=snap)
+    idea = out.select("long", "Long")[0]
+    assert idea.stop is None
+    assert "-193 statt 597 Basispunkten" in idea.size_note["de"]
+    assert "4,0 x ATR" in idea.size_note["de"] and "-193 instead of 597" in idea.size_note["en"]
+    assert "4.0 x ATR" in idea.size_note["en"]

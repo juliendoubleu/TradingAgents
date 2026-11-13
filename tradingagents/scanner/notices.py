@@ -7,7 +7,12 @@ prints, searches or serialises a warning or reason as a plain string keeps worki
 
 from __future__ import annotations
 
-_TEXT = {
+from collections.abc import Callable
+
+from tradingagents.scanner.fmt import format_text
+
+# code -> language -> a template for ``fmt.format_text`` or a function of the parameters
+_TEXT: dict[str, dict[str, str | Callable[[dict], str]]] = {
     "no_data": {"en": "no price data from Yahoo", "de": "keine Kursdaten von Yahoo"},
     "no_price_data": {"en": "no price data", "de": "keine Kursdaten"},
     "stale": {"en": "last bar {last} is stale", "de": "letzter Kurs vom {last} ist veraltet"},
@@ -58,6 +63,37 @@ _ITEM_DE = {
 }
 
 
+def register(texts: dict[str, dict]) -> None:
+    """Add message codes, so a module owns the wording of the notes it raises.
+
+    ``texts`` maps a code to ``{"en": ..., "de": ...}``; each text is a template for
+    ``fmt.format_text`` (numbers come out in the language of the reader) or a function of
+    the parameters dict for sentences that need more than a template.  A code may be
+    registered again with identical texts (a module imported twice); a different text for
+    an existing code is an error, because two modules would then disagree (functions are
+    replaced, so a reloaded module registers itself again).
+    """
+    for code, table in texts.items():
+        if "en" not in table:
+            raise ValueError(f"notice {code!r} needs an English text")
+        callable_text = any(callable(v) for v in table.values())
+        if code in _TEXT and _TEXT[code] != table and not callable_text:
+            raise ValueError(f"notice code {code!r} is already registered with another text")
+        _TEXT[code] = table
+
+
+def _render(code: str, lang: str, params: dict) -> str:
+    table = _TEXT[code]
+    entry = table.get(lang, table["en"])
+    if callable(entry):
+        return entry(params)
+    return format_text(entry, lang, **params)
+
+
+def _rebuild(code: str, params: dict) -> Notice:
+    return Notice(code, **params)
+
+
 class Notice(str):
     """A translatable message: ``code`` + ``params``; ``str(notice)`` is the English text."""
 
@@ -67,14 +103,18 @@ class Notice(str):
     def __new__(cls, code: str, **params) -> Notice:
         if code == "regime_input_missing":
             params.setdefault("item_de", _ITEM_DE.get(params.get("item", ""), params.get("item")))
-        obj = super().__new__(cls, _TEXT[code]["en"].format(**params))
+        obj = super().__new__(cls, _render(code, "en", params))
         obj.code = code
         obj.params = params
         return obj
 
+    def __reduce__(self):
+        """Pickle and copy by code + parameters: ``__new__`` takes a code, which the default
+        ``str`` protocol would not pass."""
+        return (_rebuild, (self.code, dict(self.params)))
+
     def text(self, lang: str = "en") -> str:
-        template = _TEXT[self.code].get(lang, _TEXT[self.code]["en"])
-        return template.format(**self.params)
+        return _render(self.code, lang, self.params)
 
     def to_dict(self) -> dict:
         return {"code": self.code, "params": dict(self.params),

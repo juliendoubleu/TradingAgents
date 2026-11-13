@@ -6,6 +6,7 @@ from cli.display import console
 from cli.models import AnalystType, AssetType
 from cli.prompts import filter_analysts_for_asset_type, parse_analysts
 from cli.run import run_analysis
+from cli.scanner_commands import register as register_scanner_commands
 from tradingagents.backtest import iter_grid, run_backtest, summarize
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.portfolio import load_portfolio
@@ -212,7 +213,10 @@ def _print_recommendations(result, lang: str, horizons) -> None:
     from tradingagents.scanner.report import (
         SIDES,
         composite_conflicts,
+        conflict_text,
+        general_notes,
         horizon_views,
+        size_notes,
         sizing_note,
         tr,
     )
@@ -224,7 +228,10 @@ def _print_recommendations(result, lang: str, horizons) -> None:
     conflicts = composite_conflicts(result)
     console.print(f"\n[bold]{tr('recs', lang)}[/bold]")
     if not any(v.recs for v in views):
-        console.print(f"[bold yellow]{tr('no_rec_any', lang)}[/bold yellow]")
+        console.print(f"[bold yellow]{escape(tr('no_rec_any', lang))}[/bold yellow]",
+                      soft_wrap=True)
+    for line in general_notes(result, lang):
+        console.print(f"[yellow]{escape(line)}[/yellow]", soft_wrap=True)
     for view in views:
         console.print(f"\n[bold]{escape(holding_text(view.key, result.ideas.family, lang))}[/bold]")
         if view.recs:
@@ -236,18 +243,22 @@ def _print_recommendations(result, lang: str, horizons) -> None:
                 table.add_row(
                     f"[{colour}]{i.direction}[/{colour}]", escape(i.symbol),
                     f"{fmt_price(i.reference_price, lang)} ({fmt_date(i.reference_date, lang)})",
-                    fmt_price(i.stop, lang),
+                    fmt_price(i.stop, lang) if i.stop is not None else tr("no_stop", lang),
                     "-" if i.size_pct is None else f"{fmt_num(i.size_pct, 1, lang)} %")
             console.print(table)
             shown = list(dict.fromkeys(
                 (i.direction, i.evidence.text(lang)) for i in view.recs))
             for direction, sentence in shown:
                 console.print(f"  {direction}: {escape(sentence)}", soft_wrap=True)
+            for line in size_notes(view.recs, lang):
+                console.print(f"  [dim]{escape(line)}[/dim]", soft_wrap=True)
             for i in view.recs:
-                flag = conflicts.get(i.symbol)
+                flag = conflict_text(i, conflicts.get(i.symbol), lang)
                 if flag:
-                    console.print(f"  [yellow]{escape(i.symbol)}: "
-                                  f"{tr('tech_weak_now' if flag == 'weak' else 'tech_strong_now', lang)}"
+                    console.print(f"  [yellow]{escape(i.symbol)}: {escape(flag)}[/yellow]",
+                                  soft_wrap=True)
+                if i.outside:
+                    console.print(f"  [yellow]{escape(i.outside.get(lang, i.outside['en']))}"
                                   "[/yellow]", soft_wrap=True)
         why = []
         for side in SIDES:
@@ -266,7 +277,7 @@ def _print_watch(result, lang: str, horizons) -> None:
 
     from tradingagents.scanner.fmt import fmt_num
     from tradingagents.scanner.horizons import holding_text
-    from tradingagents.scanner.report import _specific_watch, horizon_keys, localize_text, tr
+    from tradingagents.scanner.report import _specific_watch, horizon_keys, tr
 
     keys = horizon_keys(horizons)
     console.print(f"\n[bold]{tr('watch', lang)}[/bold]")
@@ -289,7 +300,7 @@ def _print_watch(result, lang: str, horizons) -> None:
             console.print("  -")
         for s in signals:
             sign = "+" if s.score > 0 else ""
-            reasons = "; ".join(localize_text(r, lang) for r in s.reasons_text(lang))
+            reasons = "; ".join(s.reasons_text(lang))
             console.print(f"  [bold]{escape(s.symbol)}[/bold] ({sign}{fmt_num(s.score, 1, lang)}): "
                           f"{escape(reasons)}", soft_wrap=True)
 
@@ -400,7 +411,6 @@ def scan(
     from tradingagents.scanner.regime import LABELS as REGIME_LABELS
     from tradingagents.scanner.report import (
         HORIZON_ORDER,
-        localize_text,
         save_scan,
         universe_description,
     )
@@ -493,7 +503,7 @@ def scan(
             console.print(f"{_c('regime', lang)}: [{tone}]{REGIME_LABELS[result.regime.label][lang]}"
                           f"[/{tone}] ({result.regime.points:+d})")
             for line in result.regime.describe(lang):
-                console.print(f"  - {escape(localize_text(line, lang))}", soft_wrap=True)
+                console.print(f"  - {escape(line)}", soft_wrap=True)
             for warning in result.warnings:
                 text = warning.text(lang) if hasattr(warning, "text") else warning
                 console.print(f"[yellow]{escape(text)}[/yellow]", soft_wrap=True)
@@ -521,6 +531,9 @@ def scan(
                               f"       {paths['json']}\n       {paths['digest']}", soft_wrap=True)
     if not digest:
         console.print(f"\n[dim]{_c('disclaimer', lang)}[/dim]", soft_wrap=True)
+
+
+register_scanner_commands(app)
 
 
 if __name__ == "__main__":

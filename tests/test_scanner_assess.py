@@ -217,10 +217,10 @@ def _german_text(patch_scan):
 def test_german_rendering_is_german_with_decimal_commas(patch_scan):
     _, text = _german_text(patch_scan)
     for needed in ("Einschätzung", "Das Wichtigste", "Technisches Bild", "Keine Anlageberatung",
-                   "Empfehlung Long", "nur Beobachtung", "Kein Signal", "Langfristig",
+                   "Empfehlung Long", "nur Beobachtung", "Keine Idee für", "Langfristig",
                    "Belegt: im Test"):
         assert needed in text, needed
-    for english in ("Recommendation", "Entry", "No signal", "watch only", "Not investment",
+    for english in ("Recommendation", "Entry", "No idea for", "watch only", "Not investment",
                     "Assessment", "In short", "technical picture"):
         assert english not in text, english
     body = re.sub(r"\d{2}\.\d{2}\.\d{4}", "", text)       # dates are dd.mm.yyyy
@@ -262,7 +262,7 @@ def test_english_rendering_has_no_german_leftovers(patch_scan):
     result, _ = _german_text(patch_scan)
     text = A.render_assessment(result, "en")
     for needed in ("Assessment", "In short", "Technical picture", "Not investment advice",
-                   "Recommendation Long", "watch only", "No signal"):
+                   "Recommendation Long", "watch only", "No idea for"):
         assert needed in text, needed
     for german in ("Einschätzung", "Keine Anlageberatung", "Mittelfristig", "Empfehlung",
                    "Technisches", "Überzeugung"):

@@ -15,15 +15,13 @@ Honesty rules the code enforces rather than hopes for:
 * A ticker can be an evidenced Long and technically weak at once; the conflict is shown.
 * Nothing is promised and an unknown ticker is reported, not guessed.
 
-The summary sentences are ``Statement`` objects: like ``notices.Notice`` they keep a code
-and parameters and render in German or English on demand (``Notice``'s code table is
-closed to this module, hence the small twin class).
+The summary sentences are ``notices.Notice`` objects (code ``assess_summary``, registered
+below): they keep a code and parameters and render in German or English on demand.
 """
 
 from __future__ import annotations
 
 import logging
-import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -32,6 +30,7 @@ import pandas as pd
 
 from tradingagents.dataflows.errors import VendorError
 from tradingagents.dataflows.symbols import normalize_symbol
+from tradingagents.scanner import notices
 from tradingagents.scanner.aliases import display_name
 from tradingagents.scanner.events import Snapshot, performance_snapshot, render_implied_moves
 from tradingagents.scanner.fmt import fmt_date, fmt_num, fmt_pct, fmt_price
@@ -85,26 +84,8 @@ def _score(x: float, lang: str) -> str:
 
 
 # --------------------------------------------------------------------------- statements
-
-class Statement(str):
-    """A summary sentence as code + parameters; ``str(s)`` is English, ``s.text(lang)`` either."""
-
-    code: str
-    params: dict
-
-    def __new__(cls, code: str, **params) -> Statement:
-        obj = super().__new__(cls, _statement_text(code, params, "en"))
-        obj.code = code
-        obj.params = params
-        return obj
-
-    def text(self, lang: str = "en") -> str:
-        return _statement_text(self.code, self.params, lang)
-
-    def to_dict(self) -> dict:
-        return {"code": self.code, "horizon": self.params.get("horizon"),
-                "text": self.text("en"), "text_de": self.text("de")}
-
+# The summary sentences are ``Notice`` objects like every other message of the scanner; this
+# module registers the one code it owns (its wording needs the entries, not a template).
 
 def _tech_clause(entries: list[dict], lang: str) -> str:
     """The technical-picture comparison; empty when fewer than two scores or all equal."""
@@ -148,9 +129,7 @@ def _single_text(h: str, e: dict, lang: str) -> str:
               f"{lab}: there is no signal for {name} here.", lang)
 
 
-def _statement_text(code: str, p: dict, lang: str) -> str:
-    if code != "summary":
-        return code
+def _summary_text(p: dict, lang: str) -> str:
     h, ents = p["horizon"], p["entries"]
     if len(ents) == 1:
         return _single_text(h, ents[0], lang)
@@ -182,6 +161,10 @@ def _statement_text(code: str, p: dict, lang: str) -> str:
         head += _t(f" ({_join(weak, lang)} technisch aktuell aber schwach)",
                    f" ({_join(weak, lang)} technically weak right now though)", lang)
     return f"{lab}: {head}{'; ' + tech if tech else ''}."
+
+
+notices.register({"assess_summary": {"en": lambda p: _summary_text(p, "en"),
+                                      "de": lambda p: _summary_text(p, "de")}})
 
 
 # --------------------------------------------------------------------------- data classes
@@ -250,7 +233,7 @@ class Assessment:
     tickers: list[TickerAssessment] = field(default_factory=list)
     regimes: dict[str, dict] = field(default_factory=dict)       # universe -> label/points
     comparison: dict[str, list[str]] = field(default_factory=dict)   # horizon -> symbols, best first
-    summary_items: list[Statement] = field(default_factory=list)
+    summary_items: list[Notice] = field(default_factory=list)
     warnings: list[Notice] = field(default_factory=list)
     with_options: bool = False
 
@@ -262,7 +245,9 @@ class Assessment:
             "requested": self.requested, "as_of_date": self.as_of_date,
             "tickers": [t.to_dict() for t in self.tickers], "regimes": self.regimes,
             "comparison": self.comparison,
-            "summary": [s.to_dict() for s in self.summary_items],
+            "summary": [{"code": s.code, "horizon": s.params.get("horizon"),
+                         "text": s.text("en"), "text_de": s.text("de")}
+                        for s in self.summary_items],
             "warnings": [{"code": w.code, "text": str(w), "text_de": w.text("de")}
                          for w in self.warnings],
             "with_options": self.with_options,
@@ -324,9 +309,9 @@ def _entry(horizon: str, t: TickerAssessment) -> dict | None:
             "direction": lead.direction if lead else ""}
 
 
-def _compare(tickers: list[TickerAssessment]) -> tuple[dict, list[Statement]]:
+def _compare(tickers: list[TickerAssessment]) -> tuple[dict, list[Notice]]:
     comparison: dict[str, list[str]] = {}
-    items: list[Statement] = []
+    items: list[Notice] = []
     for h in HORIZON_ORDER:
         entries = [e for t in tickers if (e := _entry(h, t)) is not None]
         if not entries:
@@ -335,7 +320,7 @@ def _compare(tickers: list[TickerAssessment]) -> tuple[dict, list[Statement]]:
                                     -(e["score"] if e["score"] is not None else -1e9),
                                     e["symbol"]))
         comparison[h] = [e["symbol"] for e in entries]
-        items.append(Statement("summary", horizon=h, entries=entries))
+        items.append(Notice("assess_summary", horizon=h, entries=entries))
     return comparison, items
 
 
@@ -437,14 +422,21 @@ def _add_options(results: dict[str, TickerAssessment], symbols: list[str]) -> No
 # --------------------------------------------------------------------------- rendering
 
 def _plan_line(idea: Idea, lang: str) -> str:
+    """Entry, size, holding period and reference of a recommendation.  A time-exit rule has
+    no stop: its size is equal weight in the measured basket and the note says why."""
     parts = [f"{_t('Einstieg', 'Entry', lang)}: {idea.entry.get(lang, idea.entry.get('en'))}"]
     if idea.stop is not None:
         parts.append(f"Stop: {fmt_price(idea.stop, lang)}")
-    if idea.size_pct is not None:
-        parts.append(_t(f"Größe: bis {fmt_num(idea.size_pct, 1, lang)} % des Kapitals "
-                        "(Risiko je Trade 1 %)",
-                        f"size: up to {fmt_num(idea.size_pct, 1, lang)} % of capital "
-                        "(1 % risked per trade)", lang))
+        if idea.size_pct is not None:
+            parts.append(_t(f"Größe: bis {fmt_num(idea.size_pct, 1, lang)} % des Kapitals "
+                            "(Risiko je Trade 1 %)",
+                            f"size: up to {fmt_num(idea.size_pct, 1, lang)} % of capital "
+                            "(1 % risked per trade)", lang))
+    elif idea.size_pct is not None:
+        parts.append(_t(f"Größe: {fmt_num(idea.size_pct, 1, lang)} % gleichgewichtet im Korb, "
+                        "kein Stop",
+                        f"size: {fmt_num(idea.size_pct, 1, lang)} % equal weight in the basket, "
+                        "no stop", lang))
     parts.append(idea.holding.get(lang, idea.holding.get("en", "")))
     ref = (f"{_t('Referenzkurs', 'Reference price', lang)} {fmt_price(idea.reference_price, lang)} "
            f"({fmt_date(idea.reference_date, lang)})")
@@ -475,14 +467,20 @@ def _horizon_lines(t: TickerAssessment, lang: str,
                     + ("" if evidence.endswith((".", "!", "?")) else "."))
             if status in ("recommended", "short_rec"):
                 line += f"\n  {_t('Plan', 'Plan', lang)}: {_plan_line(idea, lang)}."
-                if view.conflict:
+                if idea.size_note:
+                    line += "\n  " + idea.size_note.get(lang, idea.size_note["en"])
+                if idea.conflict:
+                    line += "\n  " + idea.conflict.get(lang, idea.conflict["en"])
+                elif view.conflict:
                     line += "\n  " + _t("Aber: aktuell technisch schwach (Short im technischen "
-                                       "Bild), beides steht nebeneinander.",
-                                       "But: currently technically weak (Short in the technical "
-                                       "picture); both stand side by side.", lang)
+                                        "Bild), beides steht nebeneinander.",
+                                        "But: currently technically weak (Short in the technical "
+                                        "picture); both stand side by side.", lang)
+            if idea.outside:
+                line += "\n  " + idea.outside.get(lang, idea.outside["en"])
             lines.append(line)
     if quiet:
-        lines.append(f"- {_t('Kein Signal', 'No signal', lang)}: {', '.join(quiet)}.")
+        lines.append(f"- {_t('Keine Idee für', 'No idea for', lang)}: {', '.join(quiet)}.")
     return lines
 
 
@@ -504,6 +502,40 @@ def _snapshot_line(s: Snapshot | None, lang: str) -> str:
         parts.append(_t(f"übliche Tagesschwankung {fmt_pct(s.atr14_pct, 1, False, lang)}",
                         f"typical daily range {fmt_pct(s.atr14_pct, 1, False, lang)}", lang))
     return " | ".join(parts)
+
+
+def _snapshot_short(s: Snapshot | None, lang: str) -> str:
+    """Price and the 1- and 3-month return: the compact answer needs no more."""
+    if s is None or s.error:
+        return ""
+    got = [f"{name} {fmt_pct(v, 1, True, lang)}"
+           for name, v in ((_t("1 Monat", "1 month", lang), s.ret_21),
+                           (_t("3 Monate", "3 months", lang), s.ret_63)) if v is not None]
+    return (f"{_t('Kurs', 'Close', lang)} {fmt_price(s.last_close, lang)} "
+            f"({fmt_date(s.last_date, lang)})" + (f", {', '.join(got)}" if got else ""))
+
+
+def _compact_block(t: TickerAssessment, lang: str, horizons: tuple[str, ...]) -> str:
+    """One short block for a phone: the price line, the technical picture in one line, one
+    line per horizon.  No reasons list, no options, no notes: ``assess`` has those."""
+    if t.error is not None:
+        return _ticker_block(t, lang, horizons)
+    snap = _snapshot_short(t.snapshot, lang)
+    out = [f"**{t.name}**" + (f" – {snap}" if snap else "")]
+    if not t.in_universe:
+        fam = _FAMILY_LABEL.get(t.family, (t.family, t.family))[0 if lang == "de" else 1]
+        out.append(_t(f"_In keiner Liste des Programms; als {fam} eingestuft._",
+                      f"_In none of the program's lists; treated as {fam}._", lang))
+    s = t.signal
+    if s is not None:
+        conv = {"High": _t("hoch", "high", lang), "Medium": _t("mittel", "medium", lang),
+                "Low": _t("niedrig", "low", lang)}.get(s.conviction, s.conviction)
+        out.append(_t(f"Technisches Bild (ohne gemessenen Vorteil): {s.direction}, Score "
+                      f"{_score(s.score, lang)}, Überzeugung {conv}.",
+                      f"Technical picture (no measured edge): {s.direction}, score "
+                      f"{_score(s.score, lang)}, conviction {conv}.", lang))
+    out.append("\n".join(_horizon_lines(t, lang, horizons)))
+    return "\n".join(part for part in out if part)
 
 
 def _ticker_block(t: TickerAssessment, lang: str,
@@ -529,8 +561,6 @@ def _ticker_block(t: TickerAssessment, lang: str,
         conv = {"High": _t("hoch", "high", lang), "Medium": _t("mittel", "medium", lang),
                 "Low": _t("niedrig", "low", lang)}.get(s.conviction, s.conviction)
         reasons = "; ".join(s.reasons_text(lang))
-        if lang == "de":      # the scanner's reason texts format numbers with a decimal point
-            reasons = re.sub(r"(\d)\.(\d)", r"\1,\2", reasons)
         out.append(_t(f"**Technisches Bild (ohne gemessenen Vorteil):** {direction}, Score "
                       f"{_score(s.score, lang)} von ±100, Überzeugung {conv}. {reasons}.",
                       f"**Technical picture (no measured edge):** {direction}, score "
@@ -601,6 +631,29 @@ def render_body(a: Assessment, lang: str = "en",
         parts.append(f"**{_t('Zu den kurzen Horizonten', 'On the short horizons', lang)}:** "
                      + " ".join(notes))
     parts.append(f"_{legend(lang)}_")
+    parts.append(f"**{disclaimer(lang)}**")
+    return "\n\n".join(parts)
+
+
+def legend_short(lang: str = "en") -> str:
+    return _t(
+        "Belegt = messbarer Vorteil im Test nach Kosten · Schwach belegt = vorläufig, kann Zufall "
+        "sein · Nicht belegt = kein messbarer Vorteil · Nicht untersucht = keine Messung. Der "
+        "Score ist ein technisches Bild, kein Beleg.",
+        "Validated = measurable edge in the test after costs · Weakly supported = preliminary, "
+        "may be chance · Not proven = no measurable edge · Not studied = no measurement. The "
+        "score is a technical picture, not evidence.", lang)
+
+
+def render_compact(a: Assessment, lang: str = "en",
+                   horizons: tuple[str, ...] | list[str] | None = None) -> str:
+    """The phone version of ``render_body``: one compact block per instrument, legend and
+    disclaimer in one line each."""
+    shown = tuple(h for h in HORIZON_ORDER if horizons is None or h in horizons)
+    parts = [_regime_line(a, lang)]
+    parts.extend(w.text(lang) for w in a.warnings)
+    parts.extend(_compact_block(t, lang, shown) for t in a.tickers)
+    parts.append(f"_{legend_short(lang)}_")
     parts.append(f"**{disclaimer(lang)}**")
     return "\n\n".join(parts)
 

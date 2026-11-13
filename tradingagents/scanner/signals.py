@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 
 from tradingagents.scanner import indicators as ind
+from tradingagents.scanner.fmt import format_text
 from tradingagents.scanner.notices import Notice
 
 MIN_BARS = 220
@@ -117,9 +118,10 @@ class Signal:
         return self.reasons_text("en")
 
     def reasons_text(self, lang: str = "en") -> list[str]:
-        prefix = {"en": "Counter-signal: ", "de": "Gegensignal: "}[lang if lang in ("en", "de") else "en"]
+        lang = lang if lang in ("en", "de") else "en"
+        prefix = {"en": "Counter-signal: ", "de": "Gegensignal: "}[lang]
         return [("" if not params.get("against") else prefix)
-                + _REASONS[code].get(lang, _REASONS[code]["en"]).format(**params)
+                + format_text(_REASONS[code].get(lang, _REASONS[code]["en"]), lang, **params)
                 for code, params in self.reason_items]
 
     def to_dict(self) -> dict:

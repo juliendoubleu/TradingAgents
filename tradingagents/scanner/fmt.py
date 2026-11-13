@@ -12,6 +12,7 @@ measurement that was never made.
 from __future__ import annotations
 
 import math
+import string
 from datetime import date, datetime
 
 MISSING = "-"
@@ -84,3 +85,26 @@ def fmt_date(d, lang: str = "en") -> str:
     except (AttributeError, ValueError):
         return MISSING
     return d.strftime("%d.%m.%Y") if lang == "de" else d.isoformat()
+
+
+class _Localizing(string.Formatter):
+    """``str.format`` whose numbers come out in the reader's language."""
+
+    def __init__(self, lang: str):
+        self.lang = lang
+
+    def format_field(self, value, format_spec):
+        text = super().format_field(value, format_spec)
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return _localize(text, self.lang)
+        return text
+
+
+def format_text(template: str, lang: str = "en", **params) -> str:
+    """Fill ``template`` (``"{pct:.1f} % above"``) with ``params`` and write every number in
+    ``lang``: German gets the decimal comma (and the point as thousands separator).
+
+    This is where a sentence's numbers are formatted, at the source, so no output has to
+    repair "18.2 %" afterwards.  Strings are left as they are (dates, names).
+    """
+    return _Localizing(lang).vformat(template, (), params)

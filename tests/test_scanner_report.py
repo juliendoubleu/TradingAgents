@@ -58,7 +58,7 @@ def test_markdown_sections_come_in_the_planned_order_in_english(result, validati
     deep = dd.DeepDiveResult(ratings={"UP2": "Buy"}, errors={"DN2": "RuntimeError: no key"})
     md = rp.render_markdown(result, validation, deep, "en")
     order = ["# Market scan: US", "## Market regime", "## Recommendations by investment horizon",
-             "## Watch list (not a recommendation)", "## How solid is this?",
+             "## Technical picture (not evidenced) – watch list, not a recommendation", "## How solid is this?",
              "## Validation of the technical picture", "## Deep-dive ratings", "## Method",
              "## Disclaimer"]
     positions = [md.index(h) for h in order]
@@ -66,7 +66,7 @@ def test_markdown_sections_come_in_the_planned_order_in_english(result, validati
     assert "UP2" in md and "Buy" in md and "failed: RuntimeError" in md
     assert "Survivorship" in md and "not investment advice" in md and "without limit" in md
     # the composite never shows conviction, target or a size: it is a watch list
-    watch = md[md.index("## Watch list"):md.index("## How solid")]
+    watch = md[md.index("## Technical picture"):md.index("## How solid")]
     for word in ("Conviction", "Target", "Size"):
         assert word not in watch
 
@@ -84,7 +84,7 @@ def test_every_horizon_has_a_section_and_no_empty_table(result):
     # the why-not notes carry the numbers
     assert "15 rules" in md or "24 rules" in md
     assert "none with a proven edge out of sample" in md
-    assert rp.render_markdown(result, lang="de").count("Heute gibt es auf keinem Horizont") == 1
+    assert rp.render_markdown(result, lang="de").count("Keine belegte Empfehlung. Das technische Bild unten") == 1
 
 
 @pytest.mark.unit
@@ -107,9 +107,9 @@ def test_a_watch_only_idea_never_appears_in_a_recommendation_table():
                 idea_obj = next(i for i in ideas if i.symbol == row[1])
                 assert cell.text.startswith(idea_obj.evidence.text(lang))      # verbatim
     md = rp.render_markdown(result, lang="en")
-    watch = md[md.index("## Watch list"):md.index("## How solid")]
+    watch = md[md.index("## Technical picture"):md.index("## How solid")]
     assert "WATCHBETA" in watch and "AVOIDME" in watch and "avoid / underweight" in watch
-    assert "UNPROVEN" not in md.split("## Watch list")[0]
+    assert "UNPROVEN" not in md.split("## Technical picture")[0]
 
 
 @pytest.mark.unit
@@ -118,7 +118,7 @@ def test_a_recommended_long_that_is_technically_weak_says_so():
     assert any(s.symbol == "DN0" and s.direction == "Short" for s in result.signals)
     md = rp.render_markdown(result, lang="de")
     row = next(line for line in md.splitlines() if "| Long | DN0 |" in line)
-    assert "Aktuell technisch schwach" in row
+    assert "Technisch aktuell schwach" in row
 
 
 @pytest.mark.unit
@@ -134,7 +134,7 @@ def test_german_report_has_no_english_leftovers_and_decimal_commas(validation):
         assert "Eigene Liste (6 Ticker)" in text and "6 bewertet" in text
     de = rp.render_markdown(result, validation, None, "de")
     for needle in ("Marktregime", "Empfehlungen nach Anlagehorizont",
-                   "Beobachtungsliste – technisches Bild, kein belegter Vorteil",
+                   "Technisches Bild (nicht belegt) – Beobachtungsliste, keine Empfehlung",
                    "Wie belastbar ist das?", "Validierung des technischen Bildes", "Urteil:",
                    "Haftungsausschluss", "Das Scan-Datum", "letzter Kurs vom", "5,97 %",
                    "über dem 200-Tage-Schnitt", "Belegt", "Nicht belegt"):
@@ -166,7 +166,7 @@ def test_how_solid_table_and_computed_paragraph():
     result = evidenced_result()
     en = rp.render_markdown(result, lang="en")
     section = en[en.index("## How solid is this?"):en.index("## Method")]
-    assert "| Long term | Long | Validated |" in section
+    assert "| Long term | Long | Momentum 12-1 (T1) | Validated |" in section
     assert "44" in section and "2022–2026" in section and "2.2" in section
     assert "Passed the out-of-sample test: Long term Long (Momentum 12-1)" in section
     assert "Short ideas are not evidenced anywhere" in section
@@ -189,7 +189,7 @@ def test_how_solid_table_and_computed_paragraph():
 def test_horizon_filter_limits_the_sections():
     result = evidenced_result()
     md = rp.render_markdown(result, lang="en", horizons=["day"])
-    assert "### Day trade" in md and "### Long term" not in md and "UP2" in md.split("## Watch")[1]
+    assert "### Day trade" in md and "### Long term" not in md and "UP2" in md.split("## Technical picture")[1]
     assert "| Long | UP2 |" not in md
 
 
@@ -197,7 +197,7 @@ def test_horizon_filter_limits_the_sections():
 def test_report_without_an_idea_layer_says_so_and_still_renders(result):
     result.ideas = None
     md = rp.render_markdown(result, lang="en")
-    assert "idea layer was not available" in md and "## Watch list" in md
+    assert "idea layer was not available" in md and "## Technical picture" in md
     assert "UP2" in md and "nothing can be rated" in md
 
 

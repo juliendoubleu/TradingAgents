@@ -18,7 +18,6 @@ through ``fmt.py``. The HTML loads nothing and runs nothing, like
 from __future__ import annotations
 
 import json
-import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from html import escape
@@ -90,8 +89,10 @@ _T = {
         "bestanden hat. Alles andere steht in der Beobachtungsliste weiter unten und ist "
         "keine Empfehlung."),
     "no_rec_any": (
-        "No evidenced recommendation at any horizon today.",
-        "Heute gibt es auf keinem Horizont eine belegte Empfehlung."),
+        "No evidenced recommendation. The technical picture below is not evidenced: it is "
+        "shown only so you can see what looks strong or weak right now.",
+        "Keine belegte Empfehlung. Das technische Bild unten ist nicht belegt: es zeigt nur, "
+        "was aktuell stark oder schwach aussieht."),
     "no_rec": ("No recommendation for this horizon.", "Keine Empfehlung für diesen Horizont."),
     "ideas_missing": (
         "The idea layer was not available for this scan: there are no recommendations.",
@@ -99,24 +100,31 @@ _T = {
     "dir": ("Direction", "Richtung"), "ticker": ("Ticker", "Ticker"),
     "ref": ("Reference price (date)", "Referenzkurs (Datum)"),
     "entry": ("Entry", "Einstieg"), "stop": ("Stop", "Stop"),
+    "no_stop": ("no stop", "kein Stop"),
     "size": ("Size (max.)", "Größe (max.)"), "holding": ("Holding period", "Haltedauer"),
     "evidence": ("Evidence", "Beleg"),
-    "tech_weak_now": ("Currently technically weak (see watch list).",
-                      "Aktuell technisch schwach (siehe Beobachtungsliste)."),
-    "tech_strong_now": ("Currently technically strong (see watch list).",
-                        "Aktuell technisch stark (siehe Beobachtungsliste)."),
+    "tech_weak_now": ("Technically weak right now: the scanner's technical picture says Short.",
+                      "Technisch aktuell schwach: das technische Bild des Scanners sagt Short."),
+    "tech_strong_now": ("Technically strong right now: the scanner's technical picture says Long.",
+                        "Technisch aktuell stark: das technische Bild des Scanners sagt Long."),
     "sizing": (
-        "Size is the share of capital that loses {risk} % if the stop is hit, capped at {cap} %. "
         "Sizes are per trade and do NOT add up: several ideas together can exceed 100 % of "
-        "your capital, so cap the total exposure yourself. Entry is the next open after the "
-        "reference close; there is no price target, the rules exit by time (holding period).",
-        "Die Größe ist der Kapitalanteil, bei dem ein ausgelöster Stop {risk} % des Kapitals "
-        "kostet, höchstens {cap} %. Die Größen gelten je Trade und addieren sich NICHT: "
-        "mehrere Ideen zusammen können über 100 % deines Kapitals liegen, begrenze das "
-        "Gesamtengagement daher selbst. Einstieg ist die nächste Eröffnung nach dem "
-        "Referenzkurs; es gibt kein Kursziel, die Regeln steigen nach Zeit aus (Haltedauer)."),
-    "watch": ("Watch list (not a recommendation) – technical picture, no measured edge",
-              "Beobachtungsliste – technisches Bild, kein belegter Vorteil"),
+        "your capital, so cap the total exposure yourself. The medium- and long-term rules "
+        "were measured with a time exit and without a stop (a stop destroyed the measured "
+        "edge), so they carry no stop and no price target; their size is equal weight in the "
+        "measured basket (100 % divided by the number of names, at most {cap} %). For day-trade "
+        "and swing rules the size is the share of capital that loses {risk} % if the stop is "
+        "hit, capped at {cap} %. Entry is the next open after the reference close.",
+        "Die Größen gelten je Trade und addieren sich NICHT: mehrere Ideen zusammen können über "
+        "100 % deines Kapitals liegen, begrenze das Gesamtengagement daher selbst. Die mittel- "
+        "und langfristigen Regeln wurden mit Zeit-Ausstieg und ohne Stop gemessen (ein Stop "
+        "zerstörte den gemessenen Vorteil), sie tragen deshalb weder Stop noch Kursziel; ihre "
+        "Größe ist gleichgewichtet im gemessenen Korb (100 % geteilt durch die Zahl der Werte, "
+        "höchstens {cap} %). Bei Daytrade- und Swing-Regeln ist die Größe der Kapitalanteil, bei "
+        "dem ein ausgelöster Stop {risk} % des Kapitals kostet, höchstens {cap} %. Einstieg ist "
+        "die nächste Eröffnung nach dem Referenzkurs."),
+    "watch": ("Technical picture (not evidenced) – watch list, not a recommendation",
+              "Technisches Bild (nicht belegt) – Beobachtungsliste, keine Empfehlung"),
     "watch_intro": (
         "These names are NOT recommendations. The scanner's technical picture (trend, momentum, "
         "relative strength, MACD, RSI, volume) showed no measured edge in the tests; the lists "
@@ -134,6 +142,7 @@ _T = {
     "why": ("Why", "Begründung"),
     "solid": ("How solid is this?", "Wie belastbar ist das?"),
     "area": ("Horizon", "Horizont"), "label": ("Rating", "Einstufung"),
+    "rule": ("Rule", "Regel"),
     "mean": ("Mean per period", "Ø je Periode"), "tstat": ("t", "t"), "n": ("n", "n"),
     "window": ("Test window", "Testzeitraum"), "study": ("Study of", "Studie vom"),
     "labels_h": ("What the ratings mean", "Was die Einstufungen bedeuten"),
@@ -256,9 +265,12 @@ _SHORT_WHY = {
     "idea_relative_only": ("only relative weakness proven: avoid, do not short",
                            "nur relative Schwäche belegt: meiden statt shorten"),
     "idea_no_members": ("the rule currently selects nothing", "die Regel wählt aktuell nichts aus"),
+    "idea_robust_failed": ("passed the test but hangs on a few names, so it does not count",
+                           "bestand den Test, hängt aber an wenigen Werten und zählt deshalb nicht"),
     "idea_no_rec_short_term": ("{n} rules tested, no edge after costs",
                                "{n} Regeln getestet, nach Kosten kein Vorteil"),
     "idea_beta_only": ("{n} rules tested, only market return", "{n} Regeln getestet, nur Marktrendite"),
+    "idea_stale": ("the study is stale", "die Studie ist veraltet"),
 }
 
 
@@ -289,18 +301,6 @@ def _notice(item, lang: str) -> str:
     return item.text(lang) if hasattr(item, "text") else str(item)
 
 
-_DECIMAL_POINT = re.compile(r"(?<![\d.])(\d+)\.(\d+)(?![\d.])")
-
-
-def localize_text(text: str, lang: str) -> str:
-    """German decimal commas inside a generated sentence (reasons carry numbers like 18.2 %).
-
-    Dates (12.11.2026) have two dots and are left alone; the sentences from
-    ``Evidence.text`` already localise themselves and are never passed through here.
-    """
-    return _DECIMAL_POINT.sub(r"\1,\2", text) if lang == "de" else text
-
-
 def format_price(x: float | None) -> str:
     """Kept for older imports; ``fmt.fmt_price`` is the real implementation."""
     return fmt_price(x)
@@ -328,12 +328,11 @@ def market_name(result: ScanResult, lang: str = "en") -> str:
 
 
 def universe_description(result: ScanResult, lang: str = "en") -> str:
-    """The universe description in ``lang`` (the scan result itself stores the English one)."""
-    if lang != "de":
+    """The universe description in ``lang``; the scan result carries both languages."""
+    if result.descriptions:
+        return result.describe(lang)
+    if lang != "de":      # a hand-built result without descriptions: look the name up
         return result.description
-    if result.custom:
-        found = re.search(r"\((\d+)", result.description)
-        return f"Eigene Liste ({found.group(1)} Ticker)" if found else "Eigene Liste"
     try:
         return universe_info(result.universe).description["de"]
     except (ValueError, KeyError):
@@ -409,22 +408,42 @@ def horizon_views(result: ScanResult, horizons: Iterable[str] | None = None) -> 
 
 
 def composite_conflicts(result: ScanResult) -> dict[str, str]:
-    """Recommended names that the composite currently sees the other way round.
+    """Recommended names that the scanner's technical picture sees the other way round.
 
-    Today CAT is a long-term momentum Long and technically weak at the same time; the reader
-    must see that on the recommendation instead of finding it on a separate list.
+    ``"weak"`` for a Long idea the composite calls Short, ``"strong"`` for the opposite.
+    The idea itself carries the bilingual note (``Idea.conflict``); a hand-built idea
+    without one is compared with the scan's signals.
     """
-    seen = {s.symbol: s.direction for s in result.signals}
-    out = {}
+    out: dict[str, str] = {}
     if result.ideas is None:
         return out
+    seen = {s.symbol: s.direction for s in result.signals}
     for idea in result.ideas.recommended():
         direction = seen.get(idea.symbol)
-        if idea.direction == "Long" and direction == "Short":
+        if idea.conflict is None and direction not in ("Long", "Short"):
+            continue
+        if idea.direction == "Long" and (idea.conflict or direction == "Short"):
             out[idea.symbol] = "weak"
-        elif idea.direction == "Short" and direction == "Long":
+        elif idea.direction == "Short" and (idea.conflict or direction == "Long"):
             out[idea.symbol] = "strong"
     return out
+
+
+def conflict_text(idea: Idea, flag: str | None, lang: str) -> str:
+    """The note that the technical picture disagrees with an idea ('' when it does not)."""
+    if idea.conflict:
+        return idea.conflict.get(lang) or idea.conflict.get("en", "")
+    if flag:
+        return _t("tech_weak_now" if flag == "weak" else "tech_strong_now", lang)
+    return ""
+
+
+def general_notes(result: ScanResult, lang: str = "en") -> list[str]:
+    """Notes about the whole idea set rather than one horizon (a stale study)."""
+    ideas = result.ideas
+    if ideas is None:
+        return []
+    return [n.text(lang) for n in ideas.notes if n.code == "idea_stale"]
 
 
 def evidence_cells(result: ScanResult, horizons: Iterable[str] | None = None) -> list[dict]:
@@ -501,6 +520,7 @@ def solid_paragraph(result: ScanResult, lang: str, horizons: Iterable[str] | Non
         parts.append(_t("solid_short_term_beta" if beta else "solid_short_term", lang).format(n=n))
     if result.ideas.study_date:
         parts.append(_t("solid_date", lang).format(date=fmt_date(result.ideas.study_date, lang)))
+    parts.extend(general_notes(result, lang))
     return " ".join(parts)
 
 
@@ -587,14 +607,16 @@ def _idea_table(ideas: list[Idea], lang: str, conflicts: dict[str, str]) -> Bloc
     rows, tones = [], []
     for idea in ideas:
         sentence = idea.evidence.text(lang)
-        flag = conflicts.get(idea.symbol)
+        flag = conflict_text(idea, conflicts.get(idea.symbol), lang)
         if flag:
-            sentence += " " + _t("tech_weak_now" if flag == "weak" else "tech_strong_now", lang)
+            sentence += " " + flag
+        if idea.outside:
+            sentence += " " + idea.outside.get(lang, idea.outside["en"])
         rows.append([
             idea.direction, idea.symbol,
             f"{fmt_price(idea.reference_price, lang)} ({fmt_date(idea.reference_date, lang)})",
             idea.entry.get(lang) or idea.entry.get("en", "-"),
-            fmt_price(idea.stop, lang),
+            fmt_price(idea.stop, lang) if idea.stop is not None else _t("no_stop", lang),
             "-" if idea.size_pct is None else f"{fmt_num(idea.size_pct, 1, lang)} %",
             idea.holding.get(lang) or idea.holding.get("en", "-"),
             Cell(sentence, label_text(idea.evidence.label, lang), idea.evidence.label),
@@ -603,13 +625,19 @@ def _idea_table(ideas: list[Idea], lang: str, conflicts: dict[str, str]) -> Bloc
     return ("table", header, rows, tones)
 
 
+def size_notes(ideas: list[Idea], lang: str) -> list[str]:
+    """The distinct size / no-stop explanations of ``ideas`` (one per basket, not per name)."""
+    return list(dict.fromkeys(i.size_note.get(lang) or i.size_note["en"]
+                              for i in ideas if i.size_note))
+
+
 def _signal_table(signals, lang: str, tone: str) -> Block:
     header = [_t(k, lang) for k in ("rank", "ticker", "score", "close", "why")]
     rows = []
     for i, s in enumerate(signals, 1):
         rows.append([str(i), s.symbol, ("+" if s.score > 0 else "") + fmt_num(s.score, 1, lang),
                      fmt_price(s.close, lang),
-                     "; ".join(localize_text(r, lang) for r in s.reasons_text(lang))])
+                     "; ".join(s.reasons_text(lang))])
     return ("table", header, rows, [tone] * len(rows))
 
 
@@ -624,18 +652,26 @@ def _specific_watch(result: ScanResult, keys: Sequence[str]) -> list[Idea]:
 
 
 def _watch_table(ideas: list[Idea], lang: str) -> Block:
-    header = [_t(k, lang) for k in ("dir", "ticker", "ref", "stop", "evidence")]
+    """Watch items carry no entry, stop or size: they are not a plan."""
+    header = [_t(k, lang) for k in ("dir", "ticker", "ref", "evidence")]
     rows, tones = [], []
     for idea in ideas:
         avoid = idea.stance == "avoid"
         rows.append([
             _t("avoid", lang) if avoid else idea.direction, idea.symbol,
             f"{fmt_price(idea.reference_price, lang)} ({fmt_date(idea.reference_date, lang)})",
-            "-" if avoid else fmt_price(idea.stop, lang),
             Cell(idea.evidence.text(lang), label_text(idea.evidence.label, lang),
                  idea.evidence.label)])
         tones.append("avoid" if avoid else "")
     return ("table", header, rows, tones)
+
+
+def _rule_cell(ev, lang: str) -> str:
+    """The rule's plain name; its id only in parentheses, here in the evidence table."""
+    if ev is None or not ev.rule_id:
+        return "-"
+    name = ev.rule_name.get(lang) or ev.rule_name.get("en") or ev.rule_id
+    return f"{name} ({ev.rule_id})"
 
 
 def _solid_blocks(result: ScanResult, lang: str, keys: Sequence[str]) -> list[Block]:
@@ -643,14 +679,15 @@ def _solid_blocks(result: ScanResult, lang: str, keys: Sequence[str]) -> list[Bl
     if result.ideas is None or not result.ideas.evidence_available:
         blocks.append(("p", _t("solid_none", lang)))
         return blocks
-    header = [_t(k, lang) for k in ("area", "dir", "label", "mean", "tstat", "n", "window", "study")]
+    header = [_t(k, lang) for k in ("area", "dir", "rule", "label", "mean", "tstat", "n", "window",
+                                    "study")]
     rows = []
     for c in evidence_cells(result, keys):
         ev = c["evidence"]
         has = ev is not None and ev.oos_mean_bps is not None
         rows.append([
             holding_text(c["horizon"], result.ideas.family, lang).split(" – ")[0].split(":")[0],
-            c["side"], Cell("", label_text(c["label"], lang), c["label"]),
+            c["side"], _rule_cell(ev, lang), Cell("", label_text(c["label"], lang), c["label"]),
             fmt_pct(ev.oos_mean_bps / 10000.0, 2, True, lang) if has else "-",
             fmt_num(ev.oos_t, 1, lang) if has and ev.oos_t is not None else "-",
             str(ev.oos_n) if has and ev.oos_n else "-",
@@ -686,7 +723,7 @@ def build_blocks(
 
     blocks.append(("h2", _t("regime", lang)))
     blocks.append(("p", _regime_line(result, lang)))
-    blocks.append(("ul", [localize_text(line, lang) for line in result.regime.describe(lang)]))
+    blocks.append(("ul", result.regime.describe(lang)))
 
     blocks += _recommendation_blocks(result, keys, lang)
     blocks += _watch_blocks(result, keys, lang)
@@ -738,12 +775,16 @@ def _recommendation_blocks(result: ScanResult, keys: Sequence[str], lang: str) -
     views = horizon_views(result, keys)
     if not any(v.recs for v in views):
         blocks.append(("p", _t("no_rec_any", lang)))
+    blocks.extend(("p", text) for text in general_notes(result, lang))
     conflicts = composite_conflicts(result)
     family = result.ideas.family
     for view in views:
         blocks.append(("h3", holding_text(view.key, family, lang)))
         if view.recs:
             blocks.append(_idea_table(view.recs, lang, conflicts))
+            notes = size_notes(view.recs, lang)
+            if notes:
+                blocks.append(("ul", notes))
         why = []
         for side in SIDES:
             if view.side(side):

@@ -48,6 +48,10 @@ _X = {
     "max": ("max.", "max."),
     "more": ("(+{n} more in the report)", "(+{n} weitere im Bericht)"),
     "no_rec": ("no recommendation", "keine Empfehlung"),
+    "none_market": ("No evidenced recommendation.", "Keine belegte Empfehlung."),
+    "tech_picture": ("Technical picture (not evidenced)", "Technisches Bild (nicht belegt)"),
+    "equal": ("equal weight", "gleichgewichtet"),
+    "no_stop": ("no stop", "kein Stop"),
     "ideas_missing": ("ideas unavailable, no recommendation",
                       "Ideen nicht verfügbar, keine Empfehlung"),
     "watch": ("Watch (not proven)", "Beobachten (nicht belegt)"),
@@ -56,16 +60,15 @@ _X = {
     "weak_now": ("currently technically weak", "aktuell technisch schwach"),
     "strong_now": ("currently technically strong", "aktuell technisch stark"),
     "foot_labels": (
-        "Validated = passed an out-of-sample test; Watch = technical picture only, no proven "
+        "Validated = passed an out-of-sample test; technical picture = prices only, no proven "
         "edge. Sizes are per trade and do not add up.",
-        "Belegt = in einem Test außerhalb der Stichprobe bestanden; Beobachten = nur "
-        "technisches Bild, kein belegter Vorteil. Größen gelten je Trade und addieren sich "
-        "nicht."),
+        "Belegt = in einem Test außerhalb der Stichprobe bestanden; Technisches Bild = nur "
+        "Kursbild, kein belegter Vorteil. Größen gelten je Trade und addieren sich nicht."),
     "foot_advice": ("Not investment advice.", "Keine Anlageberatung."),
     "no_scan": ("No scan result", "Kein Scan-Ergebnis"),
     "none_proven": ("No evidenced recommendation", "Keine belegte Empfehlung"),
     "proven": ("Evidenced", "Belegt"),
-    "watch_only": ("watch only", "nur Beobachtung"),
+    "watch_only": ("Watch only (not proven)", "Nur Beobachtung (nicht belegt)"),
 }
 
 
@@ -102,9 +105,14 @@ def _idea_line(idea, lang: str, conflict: str | None) -> str:
     ]
     if idea.stop is not None:
         parts.append(f"{_x('stop', lang)} {fmt_price(idea.stop, lang)}")
-    if idea.size_pct is not None:
-        parts.append(f"{_x('max', lang)} {fmt_num(idea.size_pct, 1, lang)} %")
+        if idea.size_pct is not None:
+            parts.append(f"{_x('max', lang)} {fmt_num(idea.size_pct, 1, lang)} %")
+    elif idea.size_pct is not None:     # a time-exit rule: no stop, equal weight in its basket
+        parts.append(f"{fmt_num(idea.size_pct, 1, lang)} % {_x('equal', lang)}, "
+                     f"{_x('no_stop', lang)}")
     parts.append(label_text(idea.evidence.label, lang))
+    if idea.evidence.caveat:
+        parts.append(idea.evidence.caveat.get(f"short_{lang}") or idea.evidence.caveat[lang])
     if conflict:
         parts.append(_x("weak_now" if conflict == "weak" else "strong_now", lang))
     return " · ".join(parts)
@@ -145,6 +153,24 @@ def _avoid_symbols(result: ScanResult, horizons) -> list[str]:
                               if i.stance == "avoid" and i.horizon in keys))
 
 
+def _watch_line(result: ScanResult, lang: str, max_per_side: int, horizons) -> list[str]:
+    """The composite's strong and weak names, and the names to avoid (relative evidence)."""
+    lines = []
+    parts = []
+    strong = [s.symbol for s in result.longs[:max_per_side]]
+    weak = [s.symbol for s in result.shorts[:max_per_side]]
+    if strong:
+        parts.append(f"{_x('strong', lang)} {', '.join(strong)}")
+    if weak:
+        parts.append(f"{_x('weak', lang)} {', '.join(weak)}")
+    if parts:
+        lines.append(" · ".join(parts))
+    avoid = _avoid_symbols(result, horizons)[:max_per_side]
+    if avoid:
+        lines.append(f"{_x('avoid', lang)}: {', '.join(avoid)}")
+    return lines
+
+
 def _market_lines(result: ScanResult, lang: str, max_per_side: int, watch: bool,
                   newest: str, horizons) -> list[str]:
     head = f"{market_name(result, lang)} · {REGIME_LABELS[result.regime.label][lang]}"
@@ -153,45 +179,49 @@ def _market_lines(result: ScanResult, lang: str, max_per_side: int, watch: bool,
     lines = [head]
     if result.ideas is None:
         lines.append(_x("ideas_missing", lang))
-    else:
-        conflicts = composite_conflicts(result)
-        merged: dict[str, list[tuple[str, str | None]]] = {}
-        for view in horizon_views(result, horizons):
-            if view.recs:
-                lines.append(f"{holding_text(view.key, result.ideas.family, lang)}:")
-                for side in SIDES:
-                    ideas = view.side(side)
-                    lines += [_idea_line(i, lang, conflicts.get(i.symbol))
-                              for i in ideas[:max_per_side]]
-                    if len(ideas) > max_per_side:
-                        lines.append(_x("more", lang).format(n=len(ideas) - max_per_side))
-            for name, side, text in _nothing_entries(view, lang):
-                merged.setdefault(text, []).append((name, side))
-        for text, entries in merged.items():
-            # a line that mixes "both sides" and "one side" must not leave the reader guessing
-            mixed = any(side for _, side in entries)
-            labels = [f"{name} {side or 'Long+Short'}" if mixed else name for name, side in entries]
-            lines.append(f"{', '.join(labels)}: {text}")
-    if watch:
-        parts = []
-        strong = [s.symbol for s in result.longs[:max_per_side]]
-        weak = [s.symbol for s in result.shorts[:max_per_side]]
-        if strong:
-            parts.append(f"{_x('strong', lang)} {', '.join(strong)}")
-        if weak:
-            parts.append(f"{_x('weak', lang)} {', '.join(weak)}")
-        if parts:
-            lines.append(f"{_x('watch', lang)}: {' · '.join(parts)}")
-        avoid = _avoid_symbols(result, horizons)[:max_per_side]
-        if avoid:
-            lines.append(f"{_x('avoid', lang)}: {', '.join(avoid)}")
+        return lines
+    conflicts = composite_conflicts(result)
+    merged: dict[str, list[tuple[str, str | None]]] = {}
+    views = horizon_views(result, horizons)
+    evidenced = any(v.recs for v in views)
+    for view in views:
+        if view.recs:
+            lines.append(f"{holding_text(view.key, result.ideas.family, lang)}:")
+            for side in SIDES:
+                ideas = view.side(side)
+                lines += [_idea_line(i, lang, conflicts.get(i.symbol))
+                          for i in ideas[:max_per_side]]
+                if len(ideas) > max_per_side:
+                    lines.append(_x("more", lang).format(n=len(ideas) - max_per_side))
+        for name, side, text in _nothing_entries(view, lang):
+            merged.setdefault(text, []).append((name, side))
+    picture = _watch_line(result, lang, max_per_side, horizons) if watch else []
+    if not evidenced:
+        # nothing is evidenced here: say so in one plain sentence, then label the picture
+        sentence = _x("none_market", lang)
+        if picture:
+            sentence += f" {_x('tech_picture', lang)}: {' · '.join(picture)}"
+        lines.append(sentence)
+    for text, entries in merged.items():
+        # a line that mixes "both sides" and "one side" must not leave the reader guessing
+        mixed = any(side for _, side in entries)
+        labels = [f"{name} {side or 'Long+Short'}" if mixed else name for name, side in entries]
+        lines.append(f"{', '.join(labels)}: {text}")
+    if evidenced and picture:
+        lines.append(f"{_x('watch', lang)}: {' · '.join(picture)}")
     return lines
 
 
 def _title(results: list[ScanResult], lang: str, now: datetime, newest: str) -> str:
+    """``Fr 13.11.2026 17:52 · Kurse bis 12.11.2026``; when the markets' newest bars differ
+    (a closed exchange, a holiday) the range ``Kurse bis 11.11.2026–12.11.2026``."""
     weekday = _WEEKDAY[lang][now.weekday()]
     stamp = f"{weekday} {fmt_date(now.date(), lang)} {now.strftime('%H:%M')}"
-    if newest:
+    dates = sorted({r.as_of_date for r in results if r.as_of_date})
+    if len(dates) > 1:
+        stamp += (f" · {_x('title_prices', lang)} {fmt_date(dates[0], lang)}–"
+                  f"{fmt_date(dates[-1], lang)}")
+    elif newest:
         stamp += f" · {_x('title_prices', lang)} {fmt_date(newest, lang)}"
     return stamp
 
@@ -243,7 +273,7 @@ def _headline(results: list[ScanResult], lang: str, horizons) -> str:
             watch = "; ".join(
                 f"{market_name(r, lang)} {', '.join(s.symbol for s in r.longs[:limit])}"
                 for r in results if r.longs)
-            tail = f" · {_x('watch_only', lang).capitalize()}: {watch}" if watch else ""
+            tail = f" · {_x('watch_only', lang)}: {watch}" if watch else ""
             candidates.append(f"{_x('none_proven', lang)}{tail} · {regimes}")
             candidates.append(f"{_x('none_proven', lang)}{tail}")
         candidates.append(_x("none_proven", lang))

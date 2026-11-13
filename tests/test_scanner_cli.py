@@ -52,7 +52,7 @@ def test_scan_prints_regime_horizons_watch_list_and_never_runs_the_interactive_f
     assert res.exit_code == 0, res.output
     assert calls == []
     for text in ("Market regime", "Recommendations by investment horizon", "Long term",
-                 "Day trade", "Watch list (not a recommendation)", "UP2", "DN2", "How solid is this?",
+                 "Day trade", "Technical picture (not evidenced)", "UP2", "DN2", "How solid is this?",
                  "Saved:", "not investment advice", "do not add up"):
         assert text in res.output, text
     out = tmp_path / "scans" / f"us-custom_{END}"

@@ -12,7 +12,8 @@ The scanner needs no LLM. The owner reads results in German, on a phone.
 - `python -m pytest -q` (not bare `pytest`); `ruff check .` must stay clean.
 - `yfinance` may only be imported under `tradingagents/dataflows/`. Tests run offline and
   deterministic (inject loaders / monkeypatch the vendor); mark them `@pytest.mark.unit`.
-- Numbers in scanner output go through `tradingagents/scanner/fmt.py` (German decimal commas).
+- Numbers in scanner output go through `tradingagents/scanner/fmt.py` (`fmt_num`, `format_text`:
+  German decimal commas are produced where the sentence is built, never patched afterwards).
 
 ## Answering the owner's market questions (the important part)
 The owner asks things like "Nvidia oder SAP auf 3 Monate?", "Lohnt ein Short auf Tesla?" or an
@@ -24,7 +25,9 @@ open event question ("GTA VI kommt nächste Woche, ist am Markt etwas zu erwarte
 | about named instruments / a choice between them | `python -m cli.main ask "<question>" --lang de`, or `python -m cli.main assess NVDA SAP.DE --lang de` (add `--options` for implied moves) |
 | what happened around past events | `python -m cli.main event-study SYMBOL --dates "2018-10-26:Red Dead Redemption 2,..." --lang de` |
 | what the options market prices in | `python -m cli.main implied-move SYMBOL --lang de` |
-| the picture of a whole market | `python -m cli.main scan --universe us --digest --lang de` (also `dax`, `crypto`, `global`, `sectors`) |
+| the picture of a whole market | `python -m cli.main scan --universe us --digest --lang de` (also `dax`, `crypto`, `global`, `sectors`; several: `--universe us,dax,global,crypto`) |
+
+All of these are also listed in `tradingagents --help` (the same app as `python -m cli.main`).
 
 `ask` is deterministic (no LLM): it names the instruments it recognised and answers from the
 data. If it recognises none, it says so and points here; **open event questions are answered
@@ -45,16 +48,28 @@ sample sizes) -> **Einschätzung je Anlagehorizont** (Daytrade / Kurzfristig / M
 Langfristig, only the ones that matter) -> **Risiken und Unbekanntes**.
 
 ## Evidence labels (print `Evidence.text(lang)` verbatim, never upgrade a label)
-- `validated` (belegt): measurable edge in the out-of-sample test after costs.
+- `validated` (belegt): passed the out-of-sample test after costs (plain t of non-overlapping
+  dates) and survives removing the three best-performing names.
 - `experimental` (schwach belegt): preliminary, may be chance.
 - `relative` (nur relativ belegt): lagged the average, but no demonstrable absolute fall.
 - `beta` (nur Markt-Beta): earns only what the market earned anyway.
-- `unproven` (nicht belegt): no measurable edge. `not_studied`: no measurement.
+- `unproven` (nicht belegt): no measurable edge. `not_studied`: no measurement (a custom ticker
+  list is `not_studied` unless it is essentially the whole named universe).
 Only `validated` / `experimental` ideas are recommendations; everything else is a **watch
 list / technical picture** and must never be worded as a recommendation. The composite score has
-no measured edge. A name can be an evidenced Long and technically weak at once: show both.
-Shorts are not evidenced in any family so far; say what the latest study says, do not guess.
-Current state is in `tradingagents/scanner/evidence.json` and `shortterm/validated.json`.
+no measured edge. A name can be an evidenced Long and technically weak at once: show both
+(`Idea.conflict`). A caveat on the evidence (`Evidence.caveat`: the result hangs on a few names)
+and a stale flag (study older than 120 days) are part of the sentence: never drop them.
+Medium/long-term ideas have **no stop** (the study measured a time exit; a stop destroyed the
+edge) and are sized equal-weight in the measured basket: never invent a stop for them.
+**State of the evidence (study of 2026-11-13, corrected after an independent review): nothing is
+validated or weakly supported at any horizon, no short is evidenced, so a scan says "Keine
+belegte Empfehlung" and shows the technical picture as a labelled watch list.** The numbers are
+in `tradingagents/scanner/evidence.json` (medium/long; refresh with
+`python -m tradingagents.scanner.horizon_research --out DIR --cache DIR --update-package`) and
+`tradingagents/scanner/shortterm/validated.json` (day/swing; refresh with
+`python -m tradingagents.scanner.shortterm.research --out DIR --cache DIR --update-package`).
+Do not tune a rule to rescue a result: the measurement decides.
 
 ## Rules for every answer
 - Never promise an outcome or a return; past measurements do not predict the future.
@@ -63,12 +78,16 @@ Current state is in `tradingagents/scanner/evidence.json` and `shortterm/validat
   what to run instead; never invent a number or an assessment.
 
 ## Scheduled phone digest
-The digest is produced by `python -m cli.main scan --universe <u> --digest --lang de`: it prints
-only the plain-text digest (headline, blank line, body). A scheduled task's **final message must
+The digest is produced by `python -m cli.main scan --universe us,dax,global,crypto --digest --lang de --no-save`
+(one or several universes): it prints only the plain-text digest (headline of at most 180
+characters, blank line, body). A scheduled task's **final message must
 be that digest text unchanged**: no preamble, no rewriting, no extra commentary.
 
 ## Code map
-`scan.py` (scan), `horizons.py` (ideas + `Evidence`), `rules.py` (rule baskets), `assess.py`
-(assessment of asked instruments), `aliases.py` + `ask.py` (question parsing and answers),
-`events.py` (event study, snapshots), `report.py` / `digest.py` (reports), `cli/scanner_commands.py`
-(`assess`, `ask`, `event-study`, `implied-move`).
+`scan.py` (scan), `universe.py` (universes, evidence family of a list), `horizons.py` (ideas +
+`Evidence`), `rules.py` (rule baskets), `horizon_research.py` (the medium/long study, writes
+`evidence.json` and the German report), `shortterm/` (day/swing study), `assess.py` (assessment of
+asked instruments), `aliases.py` + `ask.py` (question parsing and answers), `events.py` (event
+study, snapshots), `report.py` / `digest.py` (reports), `notices.py` (translatable messages),
+`fmt.py` (numbers), `cli/main.py` (`scan`) and `cli/scanner_commands.py` (`assess`, `ask`,
+`event-study`, `implied-move`, mounted with `register(app)`).

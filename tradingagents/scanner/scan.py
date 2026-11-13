@@ -56,11 +56,18 @@ class ScanResult:
     # Ideas per investment horizon with their evidence label.  ``longs``/``shorts`` above stay
     # for compatibility and are the composite's "technical picture", which has no measured edge.
     ideas: IdeaSet | None = None
+    # The universe description in both languages (from ``universe_info``), so no consumer has
+    # to look it up again; ``description`` stays the English text.
+    descriptions: dict[str, str] = field(default_factory=dict)
+
+    def describe(self, lang: str = "en") -> str:
+        """The universe description in ``lang`` (English when that language is missing)."""
+        return self.descriptions.get(lang) or self.description
 
     def to_dict(self) -> dict:
         return {
             "universe": self.universe, "description": self.description,
-            "benchmark": self.benchmark, "requested_date": self.requested_date,
+            "description_de": self.describe("de"), "benchmark": self.benchmark, "requested_date": self.requested_date,
             "as_of_date": self.as_of_date, "generated": self.generated, "custom": self.custom,
             "regime": self.regime.to_dict(), "top": self.top,
             "longs": [s.to_dict() for s in self.longs],
@@ -225,5 +232,5 @@ def run_scan(
         signals=sorted(signals, key=lambda s: -s.score), longs=longs, shorts=shorts,
         skipped=sorted(skipped), warnings=warnings, top=top,
         generated=datetime.now().strftime("%Y-%m-%d %H:%M"), custom=bool(tickers),
-        running_bars_removed=running, ideas=ideas,
+        running_bars_removed=running, ideas=ideas, descriptions=dict(info.description),
     )
