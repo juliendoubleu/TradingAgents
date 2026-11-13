@@ -229,7 +229,7 @@ def compute_signal(
     benchmark_close: pd.Series | None = None,
     regime: str = "neutral",
     benchmark: str = "SPY",
-    params: SignalParams = SignalParams(),
+    params: SignalParams | None = None,
 ) -> Signal:
     """Score ``df`` (daily bars, ascending, already cut at the decision date).
 
@@ -238,6 +238,7 @@ def compute_signal(
     benchmark's own symbol as ``symbol`` gives it a relative strength of 0. Raises
     ``SkipSignal`` with the reason when the instrument cannot be scored.
     """
+    params = params or SignalParams()
     frame = _clean(df)
     if len(frame) < params.min_bars:
         raise SkipSignal("short_history", n=len(frame), need=params.min_bars)

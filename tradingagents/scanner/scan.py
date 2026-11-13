@@ -11,15 +11,18 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
 import pandas as pd
 
+from tradingagents.dataflows.errors import VendorUnavailableError
 from tradingagents.dataflows.symbols import normalize_symbol
 from tradingagents.dataflows.vendors.yahoo.bulk import load_bulk_ohlcv
+from tradingagents.scanner.notices import Notice
 from tradingagents.scanner.regime import MarketRegime, breadth_above_sma200, compute_regime
-from tradingagents.scanner.signals import Signal, SkipSignal, compute_signal
-from tradingagents.scanner.universe import resolve_universe
+from tradingagents.scanner.session import drop_unsettled
+from tradingagents.scanner.signals import Signal, SignalParams, SkipSignal, compute_signal
+from tradingagents.scanner.universe import universe_info
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +30,7 @@ VIX = "^VIX"
 LOOKBACK_DAYS = 600          # ~410 trading days: 220 for scoring plus the 252-day range
 STALE_DAYS = 10              # an instrument whose last bar lags the newest by more is skipped
 WARN_OLDER_THAN_DAYS = 5     # the newest bar this far before the requested date is flagged
+MAX_MISSING_SHARE = 0.20     # more members than this without data: not a market scan
 
 Loader = Callable[[list[str], str, int], dict[str, pd.DataFrame]]
 
@@ -42,8 +46,9 @@ class ScanResult:
     signals: list[Signal]
     longs: list[Signal]
     shorts: list[Signal]
-    skipped: list[tuple[str, str]] = field(default_factory=list)
-    warnings: list[str] = field(default_factory=list)
+    skipped: list[tuple[str, Notice]] = field(default_factory=list)   # Notice is a str too
+    warnings: list[Notice] = field(default_factory=list)
+    running_bars_removed: int = 0         # members whose still-running daily bar was cut
     top: int = 10
     generated: str = ""
     custom: bool = False                  # a --tickers list replaced the universe's members
@@ -57,8 +62,12 @@ class ScanResult:
             "longs": [s.to_dict() for s in self.longs],
             "shorts": [s.to_dict() for s in self.shorts],
             "signals": [s.to_dict() for s in self.signals],
-            "skipped": [{"symbol": s, "reason": r} for s, r in self.skipped],
-            "warnings": list(self.warnings),
+            "skipped": [{"symbol": s, "reason": str(r), "reason_de": r.text("de"),
+                         "code": r.code} for s, r in self.skipped],
+            "warnings": [str(w) for w in self.warnings],
+            "warnings_de": [w.text("de") for w in self.warnings],
+            "warning_items": [{"code": w.code, "params": w.params} for w in self.warnings],
+            "running_bars_removed": self.running_bars_removed,
         }
 
 
@@ -89,17 +98,21 @@ def analyse(
     frames: dict[str, pd.DataFrame],
     benchmark: str,
     at: pd.Timestamp | None = None,
-) -> tuple[MarketRegime, list[Signal], list[tuple[str, str]]]:
+    params: SignalParams | None = None,
+    use_vix: bool = True,
+) -> tuple[MarketRegime, list[Signal], list[tuple[str, Notice]]]:
     """Regime and a signal per member from ``frames``, seeing only bars up to ``at``.
 
     ``at=None`` uses every bar given (the live scan). Members with no data, too little
     history, or a last bar far behind the newest one are returned as ``(symbol, reason)``
-    skips instead of being scored on stale prices.
+    skips instead of being scored on stale prices. ``params`` carries the universe's
+    calendar (crypto vs stocks); ``use_vix=False`` leaves the VIX out of the regime.
     """
+    params = params or SignalParams()
     cut = {s: _cut(frames.get(s), at) for s in members}
     cut = {s: f for s, f in cut.items() if f is not None and not f["Close"].dropna().empty}
-    skipped: list[tuple[str, str]] = [
-        (s, "no price data from Yahoo") for s in members if s not in cut
+    skipped: list[tuple[str, Notice]] = [
+        (s, Notice("no_data")) for s in members if s not in cut
     ]
 
     newest = max((f["Close"].dropna().index[-1] for f in cut.values()), default=None)
@@ -107,23 +120,24 @@ def analyse(
     for symbol, frame in cut.items():
         last = frame["Close"].dropna().index[-1]
         if (newest - last).days > STALE_DAYS:
-            skipped.append((symbol, f"last bar {last.date()} is stale"))
+            skipped.append((symbol, Notice("stale", last=str(last.date()))))
         else:
             live[symbol] = frame
 
     bench_frame = _cut(frames.get(benchmark), at)
     bench_close = None if bench_frame is None else bench_frame["Close"].dropna()
-    vix_frame = _cut(frames.get(VIX), at)
+    vix_frame = _cut(frames.get(VIX), at) if use_vix else None
     vix_close = None if vix_frame is None else vix_frame["Close"].dropna()
     breadth = breadth_above_sma200({s: f["Close"].dropna() for s, f in live.items()})
-    regime = compute_regime(benchmark, bench_close, breadth, vix_close)
+    regime = compute_regime(benchmark, bench_close, breadth, vix_close, use_vix=use_vix)
 
     signals: list[Signal] = []
     for symbol, frame in live.items():
         try:
-            signals.append(compute_signal(symbol, frame, bench_close, regime.label, benchmark))
+            signals.append(compute_signal(
+                symbol, frame, bench_close, regime.label, benchmark, params))
         except SkipSignal as exc:
-            skipped.append((symbol, str(exc)))
+            skipped.append((symbol, exc.notice))
     return regime, signals, skipped
 
 
@@ -133,44 +147,63 @@ def run_scan(
     tickers: list[str] | None = None,
     top: int = 10,
     loader: Loader | None = None,
+    now: datetime | None = None,
 ) -> ScanResult:
     """Scan ``universe`` as of ``as_of_date`` and rank the Long and Short ideas.
 
     ``loader(symbols, as_of_date, lookback_days)`` supplies the bars (Yahoo when None,
-    injectable so tests run offline). The result states the date of the newest bar that
-    was really used, which is earlier than the requested date on weekends, holidays
-    and before the close.
+    injectable so tests run offline). ``now`` (UTC, default the current time) decides
+    which daily bars are finished: a bar whose exchange session is still running is
+    removed from every series, the VIX and the benchmark included, so close, ATR and
+    stop never come from a live price. The result states the date of the newest bar
+    that was really used. Unless ``tickers`` replaces the members, a universe with more
+    than ``MAX_MISSING_SHARE`` of its members without data is refused: breadth and the
+    ranking of a partial market would mislead.
     """
     if top < 1:
         raise ValueError("top must be at least 1")
     parse_date(as_of_date)
-    description, benchmark, members = resolve_universe(universe, tickers)
-    members = list(dict.fromkeys(normalize_symbol(t) for t in members))
-    wanted = list(dict.fromkeys([*members, benchmark, VIX]))
+    now = now or datetime.now(UTC)
+    info = universe_info(universe, tickers)
+    description, benchmark = info.description["en"], info.benchmark
+    params = SignalParams(info.month_bars, info.bars_per_year)
+    members = list(dict.fromkeys(normalize_symbol(t) for t in info.members))
+    wanted = list(dict.fromkeys([*members, benchmark, *([VIX] if info.use_vix else [])]))
     frames = (loader or load_bulk_ohlcv)(wanted, as_of_date, LOOKBACK_DAYS)
+    frames, trimmed = drop_unsettled(frames, now)
+    running = len([s for s in trimmed if s in members])
 
-    regime, signals, skipped = analyse(members, frames, benchmark)
-    warnings: list[str] = []
+    no_data = [s for s in members if s not in frames]
+    if not tickers and len(no_data) / len(members) > MAX_MISSING_SHARE:
+        raise VendorUnavailableError(
+            f"No price data for {len(no_data)} of {len(members)} {universe.strip().lower()} "
+            f"symbols ({', '.join(no_data[:8])}{', ...' if len(no_data) > 8 else ''}); "
+            "Yahoo is probably throttling, and a partial market is not a market scan. "
+            "Try again in a few minutes."
+        )
+
+    regime, signals, skipped = analyse(members, frames, benchmark, params=params,
+                                       use_vix=info.use_vix)
+    warnings: list[Notice] = []
     if benchmark not in frames:
-        warnings.append(f"Benchmark {benchmark} had no data: relative strength is 0 for all "
-                        "and the regime has no benchmark facts.")
-    if VIX not in frames:
-        warnings.append("VIX had no data: it adds no points to the regime.")
+        warnings.append(Notice("benchmark_missing", bench=benchmark))
+    if info.use_vix and VIX not in frames:
+        warnings.append(Notice("vix_missing"))
     for item in regime.missing:
-        if item not in ("VIX",):
-            warnings.append(f"Regime input not available: {item}.")
+        if item != "VIX":
+            warnings.append(Notice("regime_input_missing", item=item))
     if skipped:
-        warnings.append(f"{len(skipped)} of {len(members)} instruments were skipped (see list).")
+        warnings.append(Notice("skipped_summary", n=len(skipped), total=len(members)))
+    if running:
+        warnings.append(Notice("running_bar_removed", n=running, total=len(members)))
 
     as_of = max((s.last_date for s in signals), default="")
     if as_of:
         lag = (pd.Timestamp(as_of_date) - pd.Timestamp(as_of)).days
         if lag > WARN_OLDER_THAN_DAYS:
-            warnings.append(f"The newest price bar is {as_of}, {lag} days before the requested "
-                            f"{as_of_date}.")
-        if as_of == date.today().strftime("%Y-%m-%d"):
-            warnings.append("The newest bar is today's session; it may be incomplete if the "
-                            "market is still open.")
+            warnings.append(Notice("stale_data", asof=as_of, lag=lag, requested=as_of_date))
+    if as_of_date < now.strftime("%Y-%m-%d"):
+        warnings.append(Notice("past_date", date=as_of_date))
 
     longs = sorted((s for s in signals if s.direction == "Long"),
                    key=lambda s: (-s.score, s.symbol))[:top]
@@ -182,5 +215,5 @@ def run_scan(
         signals=sorted(signals, key=lambda s: -s.score), longs=longs, shorts=shorts,
         skipped=sorted(skipped), warnings=warnings, top=top,
         generated=datetime.now().strftime("%Y-%m-%d %H:%M"), custom=bool(tickers),
+        running_bars_removed=running,
     )
-

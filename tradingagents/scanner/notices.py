@@ -77,5 +77,5 @@ class Notice(str):
         return template.format(**self.params)
 
     def to_dict(self) -> dict:
-        return {"code": self.code, "params": {k: v for k, v in self.params.items()},
+        return {"code": self.code, "params": dict(self.params),
                 "text": self.text("en"), "text_de": self.text("de")}

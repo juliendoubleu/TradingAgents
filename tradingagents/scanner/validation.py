@@ -14,6 +14,7 @@ from __future__ import annotations
 import math
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 
 import numpy as np
 import pandas as pd
@@ -21,8 +22,9 @@ import pandas as pd
 from tradingagents.dataflows.symbols import normalize_symbol
 from tradingagents.dataflows.vendors.yahoo.bulk import load_bulk_ohlcv
 from tradingagents.scanner.scan import VIX, analyse, parse_date
-from tradingagents.scanner.signals import HORIZON_BARS
-from tradingagents.scanner.universe import resolve_universe
+from tradingagents.scanner.session import settled
+from tradingagents.scanner.signals import SignalParams
+from tradingagents.scanner.universe import universe_info
 
 WARMUP_MONTHS = 14
 MIN_DATES_FOR_TSTAT = 3
@@ -76,12 +78,13 @@ class ValidationResult:
     rebalances: int
     instruments: int
     stats: dict[str, DirectionStats]
-    spread: float | None                     # Long minus Short return, averaged over the dates
+    spread: float | None                     # Long minus Short return, per date, then averaged
     spread_tstat: float | None               # of the per-date spreads, when enough dates
     spread_dates: int                        # dates that had both Long and Short calls
     universe_avg_return: float | None        # all calls, equal weight: the no-skill baseline
     benchmark_avg_return: float | None       # benchmark over the same windows
     caveats: list[str] = field(default_factory=lambda: list(CAVEATS["en"]))
+    spread_pooled: float | None = None       # pooled Long average minus pooled Short average
 
     def to_dict(self) -> dict:
         return {
@@ -90,7 +93,7 @@ class ValidationResult:
             "first_rebalance": self.first_rebalance, "last_rebalance": self.last_rebalance,
             "rebalances": self.rebalances, "instruments": self.instruments,
             "stats": {k: v.to_dict() for k, v in self.stats.items()},
-            "spread": self.spread, "spread_tstat": self.spread_tstat,
+            "spread": self.spread, "spread_pooled": self.spread_pooled, "spread_tstat": self.spread_tstat,
             "spread_dates": self.spread_dates,
             "universe_avg_return": self.universe_avg_return,
             "benchmark_avg_return": self.benchmark_avg_return,
@@ -124,19 +127,29 @@ def validate(
     as_of_date: str,
     tickers: list[str] | None = None,
     months: int = 24,
-    horizon: int = HORIZON_BARS,
+    horizon: int | None = None,
     loader: Loader | None = None,
+    now: datetime | None = None,
 ) -> ValidationResult:
-    """Walk-forward test of the signals over the last ``months`` months."""
+    """Walk-forward test of the signals over the last ``months`` months.
+
+    ``horizon`` defaults to the universe's month in bars (21 stocks, 30 crypto). Bars
+    whose session is not finished at ``now`` are removed first, exactly as in the scan.
+    """
+    info = universe_info(universe, tickers)
+    horizon = info.month_bars if horizon is None else horizon
     if months < 1 or horizon < 1:
         raise ValueError("months and horizon must be at least 1")
     parse_date(as_of_date)
-    _desc, benchmark, members = resolve_universe(universe, tickers)
-    members = list(dict.fromkeys(normalize_symbol(t) for t in members))
-    wanted = list(dict.fromkeys([*members, benchmark, VIX]))
+    benchmark = info.benchmark
+    members = list(dict.fromkeys(normalize_symbol(t) for t in info.members))
+    wanted = list(dict.fromkeys([*members, benchmark, *([VIX] if info.use_vix else [])]))
     lookback = int((months + WARMUP_MONTHS) * 30.5)
     frames = (loader or load_bulk_ohlcv)(wanted, as_of_date, lookback)
-    return validate_frames(universe, as_of_date, members, benchmark, frames, months, horizon)
+    frames = settled(frames, now or datetime.now(UTC))
+    return validate_frames(universe, as_of_date, members, benchmark, frames, months, horizon,
+                           params=SignalParams(info.month_bars, info.bars_per_year),
+                           use_vix=info.use_vix)
 
 
 def validate_frames(
@@ -147,6 +160,8 @@ def validate_frames(
     frames: dict[str, pd.DataFrame],
     months: int,
     horizon: int,
+    params: SignalParams | None = None,
+    use_vix: bool = True,
 ) -> ValidationResult:
     """The walk-forward over bars already downloaded (split out so tests can feed their own)."""
     as_of = pd.Timestamp(as_of_date).normalize()
@@ -159,7 +174,10 @@ def validate_frames(
     calendar = calendar[calendar <= as_of]
     window_start = as_of - pd.DateOffset(months=months)
     in_window = int((calendar >= window_start).sum())
-    positions = rebalance_positions(len(calendar), horizon, in_window)
+    # ``in_window`` counts the last ``horizon`` bars too, which cannot be rebalance dates
+    # (they have no outcome yet), so the grid may reach back before the window: drop those.
+    positions = [p for p in rebalance_positions(len(calendar), horizon, in_window)
+                 if calendar[p] >= window_start]
 
     rows = []                       # (direction, ret, bench_ret) per call
     per_date: list[tuple[list[float], list[float]]] = []   # (long rets, short rets) per date
@@ -170,7 +188,8 @@ def validate_frames(
     for pos in positions:
         at, end = calendar[pos], calendar[pos + horizon]
         # Everything below sees bars up to `at` only; `end` is used solely to read outcomes.
-        regime, signals, _skipped = analyse(members, frames, benchmark, at=at)
+        regime, signals, _skipped = analyse(members, frames, benchmark, at=at, params=params,
+                                           use_vix=use_vix)
         bench_ret = None
         if benchmark in frames:
             b0, _ = _price_at(frames[benchmark]["Close"].dropna(), at)
@@ -206,6 +225,10 @@ def validate_frames(
     date_spreads = [float(np.mean(lg) - np.mean(sh)) for lg, sh in per_date if lg and sh]
     # Averaged per date, like its t-statistic, so a date with many calls does not outweigh the rest.
     spread = float(np.mean(date_spreads)) if date_spreads else None
+    # Pooled: every call weighs the same, so it can differ in sign from the per-date mean.
+    pooled = (stats["Long"].avg_return - stats["Short"].avg_return
+              if stats["Long"].avg_return is not None and stats["Short"].avg_return is not None
+              else None)
     tstat = None
     if len(date_spreads) >= MIN_DATES_FOR_TSTAT:
         sd = float(np.std(date_spreads, ddof=1))
@@ -217,7 +240,7 @@ def validate_frames(
         first_rebalance=dates_used[0].strftime("%Y-%m-%d") if dates_used else "",
         last_rebalance=dates_used[-1].strftime("%Y-%m-%d") if dates_used else "",
         rebalances=len(dates_used), instruments=len(seen), stats=stats,
-        spread=spread, spread_tstat=tstat, spread_dates=len(date_spreads),
+        spread=spread, spread_pooled=pooled, spread_tstat=tstat, spread_dates=len(date_spreads),
         universe_avg_return=float(np.mean(all_rets)) if all_rets else None,
         benchmark_avg_return=(float(np.mean(bench_window_returns))
                               if bench_window_returns else None),

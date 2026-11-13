@@ -233,7 +233,7 @@ def scan(
     for line in result.regime.describe(lang):
         console.print(f"  - {line}")
     for warning in result.warnings:
-        console.print(f"[yellow]{warning}[/yellow]")
+        console.print(f"[yellow]{warning.text(lang) if hasattr(warning, 'text') else warning}[/yellow]")
 
     def ideas_table(title: str, signals, colour: str) -> None:
         if not signals:
@@ -253,7 +253,14 @@ def scan(
     ideas_table("Top Long" if not de else "Top Long-Ideen", result.longs, "green")
     ideas_table("Top Short" if not de else "Top Short-Ideen", result.shorts, "red")
 
-    if validation is not None:
+    if validation is not None and validation.rebalances == 0:
+        console.print(f"\n[bold]{'Validierung' if de else 'Walk-forward validation'}[/bold]: "
+                      + ("0 Termine - zu wenig Historie fuer den gewaehlten Zeitraum, "
+                         "nichts zu zeigen." if de else
+                         "0 rebalances - not enough history for the requested window, "
+                         "nothing to show."))
+        console.print(f"[dim]{CAVEATS[lang][0]}[/dim]")
+    elif validation is not None:
         console.print(f"\n[bold]{'Validierung' if de else 'Walk-forward validation'}[/bold]: "
                       f"{validation.rebalances} {'Termine' if de else 'rebalances'}, "
                       f"{validation.first_rebalance} - {validation.last_rebalance}, "
@@ -267,9 +274,11 @@ def scan(
             vt.add_row(name, str(st.calls), pct(st.avg_return), pct(st.avg_excess),
                        "-" if st.hit_rate is None else f"{st.hit_rate * 100:.0f} %", pct(st.avg_pnl))
         console.print(vt)
-        console.print(f"Long - Short spread: {pct(validation.spread)}"
+        per_date, pooled = ("je Termin", "gepoolt") if de else ("per date", "pooled")
+        console.print(f"Long - Short spread ({per_date}): {pct(validation.spread)}"
                       + (f" (t={validation.spread_tstat:+.2f}, {validation.spread_dates} dates)"
                          if validation.spread_tstat is not None else ""))
+        console.print(f"Long - Short spread ({pooled}): {pct(validation.spread_pooled)}")
         console.print(f"[dim]{CAVEATS[lang][0]}[/dim]")
 
     deep_result = None
@@ -277,7 +286,7 @@ def scan(
         picks = sorted([*result.longs, *result.shorts], key=lambda s: -abs(s.score))[:deep]
         console.print(f"\nRunning the LLM agents on {len(picks)} ideas: "
                       f"{', '.join(s.symbol for s in picks)} ...")
-        deep_result = deep_dive(picks, result.requested_date, DEFAULT_CONFIG)
+        deep_result = deep_dive(picks, result.as_of_date or result.requested_date, DEFAULT_CONFIG)
         for symbol, rating in deep_result.ratings.items():
             console.print(f"  {symbol}: {rating}")
         for symbol, error in deep_result.errors.items():

@@ -113,6 +113,7 @@ def test_universes_have_no_duplicates_and_a_benchmark():
         assert members, name
     assert un.UNIVERSES["dax"][1] == "^GDAXI" and len(un.UNIVERSES["dax"][2]) == 40
     assert all(t.endswith(".DE") for t in un.UNIVERSES["dax"][2])
+    assert "November 2026" in un.UNIVERSES["dax"][0]
     assert len(un.UNIVERSES["sectors"][2]) == 11
     assert un.UNIVERSES["crypto"][1] == "BTC-USD"
     assert set(un.UNIVERSES["all"][2]) == set(
@@ -140,10 +141,10 @@ def _download_frame(symbols, days=8, tz=None):
 
 
 @pytest.mark.unit
-def test_bulk_loader_cuts_at_the_as_of_date_and_drops_unsettled_bars(monkeypatch):
+def test_bulk_loader_cuts_at_the_as_of_date_and_drops_rows_without_a_close(monkeypatch):
     raw = _download_frame(["AAA", "BBB"], days=8, tz="America/New_York")
     raw[("AAA", "Close")] = raw[("AAA", "Close")].astype(float)
-    raw.iloc[-1, raw.columns.get_loc(("AAA", "Close"))] = np.nan       # today's unsettled bar
+    raw.iloc[-1, raw.columns.get_loc(("AAA", "Close"))] = np.nan       # a row with no close
     seen = {}
 
     def fake(symbols, **kw):
@@ -163,6 +164,55 @@ def test_bulk_loader_cuts_at_the_as_of_date_and_drops_unsettled_bars(monkeypatch
     # yfinance's end is exclusive, so it was asked for the day after as-of
     assert seen["end"] == (pd.Timestamp(as_of) + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
     assert seen["auto_adjust"] is True
+
+
+@pytest.mark.unit
+def test_bulk_loader_keeps_a_running_session_bar_for_the_caller_to_cut(monkeypatch):
+    """Yahoo returns today's bar with the live price as its Close, so it has a close and
+    stays; deciding that it is unfinished is the scanner's job (``session.settled``)."""
+    raw = _download_frame(["AAA"], days=6)
+    live = raw.index[-1]
+    monkeypatch.setattr(bulk.yf, "download", lambda symbols, **kw: raw)
+    out = bulk.load_bulk_ohlcv(["AAA"], live.strftime("%Y-%m-%d"), 30)
+    assert out["AAA"].index[-1] == live and out["AAA"]["Close"].iloc[-1] == 6.0
+
+
+@pytest.fixture(autouse=True)
+def _no_retry_pause(monkeypatch):
+    monkeypatch.setattr(bulk, "RETRY_PAUSE_S", 0.0)
+
+
+@pytest.mark.unit
+def test_bulk_loader_retries_a_symbol_that_came_back_empty_once_on_its_own(monkeypatch):
+    calls = []
+
+    def fake(symbols, **kw):
+        calls.append(list(symbols))
+        if len(symbols) > 1:                       # the throttled batch loses BBB silently
+            return _download_frame([s for s in symbols if s != "BBB"])
+        return _download_frame(symbols)
+    monkeypatch.setattr(bulk.yf, "download", fake)
+    out = bulk.load_bulk_ohlcv(["AAA", "BBB", "CCC"], "2025-06-30", 30)
+    assert set(out) == {"AAA", "BBB", "CCC"}
+    assert calls == [["AAA", "BBB", "CCC"], ["BBB"]]
+
+
+@pytest.mark.unit
+def test_bulk_loader_retries_once_only_and_a_failed_retry_is_not_fatal(monkeypatch):
+    calls = []
+
+    def fake(symbols, **kw):
+        calls.append(list(symbols))
+        if symbols == ["BBB"]:
+            raise RuntimeError("boom")             # becomes VendorUnavailableError in yf_retry
+        return _download_frame(["AAA"])
+    monkeypatch.setattr(bulk.yf, "download", fake)
+    out = bulk.load_bulk_ohlcv(["AAA", "BBB"], "2025-06-30", 30)
+    assert set(out) == {"AAA"} and calls.count(["BBB"]) == 1
+
+    monkeypatch.setattr(bulk.yf, "download", lambda symbols, **kw: pd.DataFrame())
+    with pytest.raises(VendorUnavailableError):
+        bulk.load_bulk_ohlcv(["AAA"], "2025-06-30", 30)
 
 
 @pytest.mark.unit

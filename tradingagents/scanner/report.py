@@ -67,12 +67,22 @@ _T = {
         "Kursen bis zu diesem Tag berechnet und danach über {h} Handelstage gemessen. "
         "{inst} Instrumente, Universum {uni}, Benchmark {bench}.",
     ),
-    "val_none": ("Not enough history to validate.", "Zu wenig Historie für eine Validierung."),
+    "val_none": (
+        "Validation ran 0 rebalances: there was not enough history for a rebalance date with "
+        "a following {h}-day outcome inside the requested window, so there is nothing to show.",
+        "Die Validierung hatte 0 Rebalancing-Termine: für den gewählten Zeitraum gab es nicht "
+        "genug Historie für einen Termin mit anschließenden {h} Handelstagen Ergebnis, daher "
+        "gibt es nichts anzuzeigen."),
     "direction": ("Call", "Signal"), "calls": ("Calls", "Anzahl"),
     "avg_ret": ("Avg fwd return", "Ø Folgerendite"),
     "avg_exc": ("Avg excess vs benchmark", "Ø Überrendite vs. Benchmark"),
     "hit": ("Hit rate", "Trefferquote"), "pnl": ("Avg P&L of the position", "Ø P&L der Position"),
-    "spread": ("Long minus Short spread (average of per-date spreads)", "Long-minus-Short-Spread (Mittel der Spreads je Termin)"),
+    "spread": ("Long minus Short spread, per date (average of the per-date spreads)",
+               "Long-minus-Short-Spread je Termin (Mittel der Spreads je Termin)"),
+    "spread_pooled": ("Long minus Short spread, pooled (average of all Long calls minus "
+                      "average of all Short calls)",
+                      "Long-minus-Short-Spread gepoolt (Mittel aller Long-Signale minus "
+                      "Mittel aller Short-Signale)"),
     "tstat": ("t-statistic of the per-date spread ({n} dates)",
               "t-Statistik des Spreads je Termin ({n} Termine)"),
     "baseline": ("Equal-weight average of all calls", "Gleichgewichteter Durchschnitt aller Signale"),
@@ -118,6 +128,11 @@ _T = {
 def _t(key: str, lang: str):
     pair = _T[key]
     return pair[1] if lang == "de" else pair[0]
+
+
+def _notice(item, lang: str) -> str:
+    """A Notice in ``lang``; a plain string (older callers) as it is."""
+    return item.text(lang) if hasattr(item, "text") else str(item)
 
 
 def format_price(x: float | None) -> str:
@@ -195,10 +210,10 @@ def build_blocks(
     if result.warnings or result.skipped:
         blocks.append(("h2", _t("notes", lang)))
         if result.warnings:
-            blocks.append(("ul", list(result.warnings)))
+            blocks.append(("ul", [_notice(w, lang) for w in result.warnings]))
         if result.skipped:
             blocks.append(("p", f"{_t('skipped', lang)}:"))
-            blocks.append(("ul", [f"{sym}: {why}" for sym, why in result.skipped]))
+            blocks.append(("ul", [f"{sym}: {_notice(why, lang)}" for sym, why in result.skipped]))
 
     blocks.append(("h2", _t("method", lang)))
     comp = _T["comp"]
@@ -216,7 +231,7 @@ def build_blocks(
 def _validation_blocks(v: ValidationResult, lang: str) -> list[Block]:
     blocks: list[Block] = [("h2", _t("validation", lang))]
     if v.rebalances == 0:
-        blocks.append(("p", _t("val_none", lang)))
+        blocks.append(("p", _t("val_none", lang).format(h=v.horizon)))
     else:
         blocks.append(("p", _t("val_intro", lang).format(
             n=v.rebalances, first=v.first_rebalance, last=v.last_rebalance, h=v.horizon,
@@ -229,7 +244,8 @@ def _validation_blocks(v: ValidationResult, lang: str) -> list[Block]:
                          _pct(s.hit_rate, 0, signed=False), _pct(s.avg_pnl, 2)])
             tones.append(tone)
         blocks.append(("table", header, rows, tones))
-        facts = [f"{_t('spread', lang)}: {_pct(v.spread, 2)}"]
+        facts = [f"{_t('spread', lang)}: {_pct(v.spread, 2)}",
+                 f"{_t('spread_pooled', lang)}: {_pct(v.spread_pooled, 2)}"]
         if v.spread_tstat is not None:
             facts.append(f"{_t('tstat', lang).format(n=v.spread_dates)}: {v.spread_tstat:+.2f}")
         facts.append(f"{_t('baseline', lang)}: {_pct(v.universe_avg_return, 2)}")
