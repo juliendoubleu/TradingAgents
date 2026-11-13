@@ -235,8 +235,10 @@ class Evidence:
         if self.window:
             y1, y2 = self.window[0][:4], self.window[1][:4]
             span = y1 if y1 == y2 else f"{y1}–{y2}"
-            win = (f"im Test ({span}, {self.oos_n} Termine)" if de
-                   else f"in the test ({span}, {self.oos_n} dates)")
+            unit_de, unit_en = ("Trades", "trades") if self.judged == "trades" else (
+                "Termine", "dates")
+            win = (f"im Test ({span}, {self.oos_n} {unit_de})" if de
+                   else f"in the test ({span}, {self.oos_n} {unit_en})")
         elif self.oos_n:
             win = f"im Test ({self.oos_n} Trades)" if de else f"in the test ({self.oos_n} trades)"
         else:
@@ -293,9 +295,12 @@ class Evidence:
         what = {"long_excess": ("Vorsprung vor dem Durchschnitt", "edge over the average"),
                 "short_pnl": ("Short-Ergebnis", "short result")}.get(
             self.judged or "", ("Ergebnis", "result"))
-        return (f"Nicht belegt: {win} kein messbarer Vorteil ({what[0]} {p} % pro {per}, "
-                f"t = {t})" if de else
-                f"Not proven: {win} no measurable edge ({what[1]} {p} % per {per}, t = {t})")
+        worse_de = "sogar im Minus, " if self.oos_t <= -2.0 else ""
+        worse_en = "even negative, " if self.oos_t <= -2.0 else ""
+        return (f"Nicht belegt: {win} kein messbarer Vorteil ({worse_de}{what[0]} {p} % pro "
+                f"{per}, t = {t})" if de else
+                f"Not proven: {win} no measurable edge ({worse_en}{what[1]} {p} % per {per}, "
+                f"t = {t})")
 
     def to_dict(self) -> dict:
         def num(x, nd=4):
@@ -668,8 +673,8 @@ def _short_term_ideas(info: UniverseInfo, frames: dict[str, pd.DataFrame], as_of
     date = snap.get("study_date", "")
     members = {s: f for s, f in frames.items() if s in set(info.members)}
     try:
-        raw = live.shortterm_ideas(members, as_of, snapshot=snap, include_experimental=True) \
-            if members else []
+        raw = live.shortterm_ideas(members, as_of, snapshot=snap, include_experimental=True,
+                                   include_beta=True) if members else []
     except Exception as exc:     # a broken short-term snapshot must not take the scan down
         logger.warning("short-term ideas failed: %s", exc)
         raw = []
@@ -679,8 +684,9 @@ def _short_term_ideas(info: UniverseInfo, frames: dict[str, pd.DataFrame], as_of
         mine = [r for r in raw if r.horizon == horizon]
         recommendable = False
         for r in mine[:max(top * 4, top)]:
-            beta = r.beats_drift is False
-            label = "beta" if beta else r.verdict
+            label = getattr(r, "label", None) or r.verdict
+            if r.beats_drift is False and label == "validated":
+                label = "beta"        # passed the verdict but earns only the market's drift
             ev = Evidence(
                 label=label, strong=False, rule_id=r.strategy_id,
                 rule_name={"en": r.strategy_name_en, "de": r.strategy_name_de}, family=family,
@@ -703,6 +709,9 @@ def _short_term_ideas(info: UniverseInfo, frames: dict[str, pd.DataFrame], as_of
                 rule_name={"en": r.strategy_name_en, "de": r.strategy_name_de}))
         if recommendable:
             continue
+        if not strats:
+            out.notes.append(_note("idea_not_studied", horizon, None, family))
+            continue
         passed = [s for s in strats if s.get("verdict") in ("validated", "experimental")]
         if passed and all(s.get("beats_drift") is False for s in passed):
             out.notes.append(_note(
@@ -713,8 +722,12 @@ def _short_term_ideas(info: UniverseInfo, frames: dict[str, pd.DataFrame], as_of
                          key=["1d", "60m", "5m"].index)
             out.notes.append(_note(
                 "idea_no_rec_short_term", horizon, None, family, n=len(strats), date=date,
-                tf_en=" and ".join(_TF[t]["en"] for t in tfs),
-                tf_de=" und ".join(_TF[t]["de"].rstrip("-") for t in tfs) + "-"))
+                tf_en=_join([_TF[t]["en"] for t in tfs], "and"),
+                tf_de=_join([_TF[t]["de"].rstrip("-") + "-" for t in tfs], "und")))
+
+
+def _join(parts: list[str], word: str) -> str:
+    return parts[0] if len(parts) == 1 else f"{', '.join(parts[:-1])} {word} {parts[-1]}"
 
 
 def _oos_window(snap: dict) -> tuple[str, str] | None:

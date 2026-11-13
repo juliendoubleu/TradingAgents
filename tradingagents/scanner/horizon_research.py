@@ -703,7 +703,7 @@ def write_report(snapshot: dict, path: str | Path) -> Path:
     w = out.append
     w("# Mittel- und Langfrist: Was ist wirklich belegt?")
     w(f"\nStudie vom {s['study_date']}. Alle Zahlen stammen aus einem echten Testlauf auf "
-      "Yahoo-Kursdaten; nichts ist geschönt oder nachträglich eingestellt.\n")
+      "Yahoo-Kursdaten. Verworfene Regeln und Varianten stehen in den Tabellen mit drin.\n")
     w("## Kurzfassung\n")
     if not best:
         w("**Keine der getesteten Regeln hat in beiden Testzeiträumen einen messbaren Vorteil "
@@ -761,11 +761,12 @@ def write_report(snapshot: dict, path: str | Path) -> Path:
         for r in (x for x in res if x["family"] == name):
             ser = r["series"][r["judged"]]
             rows.append([f"{r['rule']} {s['rules'][r['rule']]['name_de']}", HORIZON_DE[r["horizon"]],
-                         SIDE_DE[r["side"]], str(ser["IS"]["n"]), _f(ser["IS"]["mean_bps"], 0),
+                         SIDE_DE[r["side"]], _f(r["baskets"].get("OOS"), 1),
+                         str(ser["IS"]["n"]), _f(ser["IS"]["mean_bps"], 0),
                          _f(ser["IS"]["nw_t"]), str(ser["OOS"]["n"]), _f(ser["OOS"]["mean_bps"], 0),
                          _f(ser["OOS"]["nw_t"]), VERDICT_DE[r["verdict"]]
                          + (" (stark)" if r["strong"] else "")])
-        w(_table(["Regel", "Horizont", "Seite", "IS n", "IS bp", "IS t", "OOS n", "OOS bp",
+        w(_table(["Regel", "Horizont", "Seite", "Ø Korb", "IS n", "IS bp", "IS t", "OOS n", "OOS bp",
                   "OOS t", "Urteil"], rows))
         w("")
     w("## Risikosicht (Long-Seite)\n")
@@ -787,6 +788,20 @@ def write_report(snapshot: dict, path: str | Path) -> Path:
         w(_table(["Regel", "Horizont", "Anteil investiert", "Rendite p. a. (Korb / alle / Index)",
                   "Sharpe (Korb / alle / Index)", "Max. Rückgang (Korb / alle / Index)"], rows))
         w("")
+    w("## Einordnung der Befunde\n")
+    if best:
+        w("Auch ein bestandener Test ist kein Versprechen: Er stützt sich auf eine einzige "
+          "Testperiode mit wenigen unabhängigen Beobachtungen (bei 6 Monaten Haltedauer etwa 44 "
+          "Termine, von denen sich benachbarte stark überlappen), auf heutige Listenmitglieder "
+          "(Survivorship) und auf Regeln, die nach Sicht der In-Sample-Zahlen um Varianten "
+          "ergänzt wurden. Bei Varianten gilt bei gleichem Urteil die vorab festgelegte Regel "
+          "als maßgeblich.\n")
+    w("Zur Beschriftung \"nur Markt-Beta\": Dieses Etikett (Long-Seite besteht auf absoluter "
+      "Rendite, hat aber keinen belegten Vorsprung vor dem Durchschnitt aller Werte außerhalb der "
+      "Stichprobe, also Mittelwert ≤ 0 oder t < 1) wurde nach dem ersten Gesamtlauf präzisiert, "
+      "damit Regeln, die außerhalb der Stichprobe doch vorn lagen, aber im Auswahlzeitraum "
+      "durchfielen, nicht fälschlich als Beta erscheinen. Die Urteile \"belegt\", \"schwach "
+      "belegt\" und \"nur relativ\" waren davon nicht betroffen.\n")
     w("## Varianten und Mehrfachtests\n")
     c = counts
     w(f"Vorab festgelegt waren {c['rule_horizons_preregistered']} Regel-Horizont-Kombinationen je "
