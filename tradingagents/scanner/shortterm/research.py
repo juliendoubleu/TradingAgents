@@ -54,19 +54,22 @@ VARIANTS: list[StrategySpec] = [
     StrategySpec("S4s", "S4", "swing", "1d", "Post-gap drift, short side only",
                  "Drift nach Kurslücke, nur Short",
                  {"gap": 1.5, "vol": 2.0, "hold": 5, "stop_atr": 2.0, "sides": "short"},
-                 "In-sample, all of S4's per-trade edge sat on the short side (heavy-volume "
-                 "gap downs keep falling).",
-                 note_de="Im IS lag der gesamte Vorteil von S4 auf der Short-Seite (Kurslücken nach unten mit hohem Volumen laufen weiter)."),
+                 "In-sample, S4's short side had by far the higher per-trade mean (+123 bps "
+                 "vs +19 bps long), so the short side alone was tried.",
+                 note_de="Im IS hatte die Short-Seite von S4 den deutlich höheren Trade-Durchschnitt (+123 bp gegenüber +19 bp Long); deshalb wurde die Short-Seite allein probiert."),
     StrategySpec("S2s", "S2", "swing", "1d", "5-day reversal, short side only",
                  "5-Tage-Umkehr, nur Short",
                  {"z": 2.0, "hold": 5, "stop_atr": 2.5, "sides": "short"},
-                 "In-sample, S2 earned on the short side and lost on the long side.",
-                 note_de="Im IS verdiente S2 auf der Short-Seite und verlor auf der Long-Seite."),
+                 "In-sample, S2's short side had a positive per-trade mean (+38 bps; its "
+                 "daily-mean t was -0.45) while its long side was negative.",
+                 note_de="Im IS war der Trade-Durchschnitt der Short-Seite von S2 positiv (+38 bp; der t-Wert der Tagesmittel lag bei −0,45), der der Long-Seite negativ."),
     StrategySpec("S3l", "S3", "swing", "1d", "Volume breakout, long side only",
                  "Ausbruch mit Volumen, nur Long",
                  {"vol": 1.5, "hold": 10, "stop_atr": 2.0, "sides": "long"},
-                 "In-sample, breakouts paid while breakdown shorts were squeezed.",
-                 note_de="Im IS zahlten sich Ausbrüche aus, während Short-Positionen bei Ausbrüchen nach unten ausgequetscht wurden."),
+                 "In-sample, the long side's gross result was positive while breakdown shorts "
+                 "lost; chosen on that gross result although its in-sample excess over the "
+                 "market was already -0.4 bps (t -0.09).",
+                 note_de="Im IS war das Brutto-Ergebnis der Long-Seite positiv, Short-Positionen bei Ausbrüchen nach unten verloren; gewählt wurde auf dieses Brutto-Ergebnis, obwohl der IS-Excess gegenüber dem Markt schon damals bei −0,4 bp lag (t = −0,09)."),
     StrategySpec("S1x", "S1", "swing", "1d", "RSI(2) pullback, extreme threshold",
                  "RSI(2)-Rücksetzer, extremere Schwelle",
                  {"lo": 5, "hi": 95, "hold": 5, "stop_atr": 2.5},
@@ -155,7 +158,7 @@ def load_data(as_of_date: str, cache_dir: Path | None = None) -> Data:
                     lambda: load_bulk_ohlcv(symbols, as_of.strftime("%Y-%m-%d"), lookback))
     intraday = {
         "60m": _cached(cache_dir, f"i60m_{as_of.date()}.pkl",
-                       lambda: load_intraday_ohlcv(symbols, "60m", 729)),
+                       lambda: load_intraday_ohlcv(symbols, "60m", 729, end=as_of)),
         "5m": _cached(cache_dir, f"i5m_{as_of.date()}.pkl",
                       lambda: load_intraday_ohlcv(symbols, "5m", 59)),
     }
@@ -205,9 +208,14 @@ def build_trades(spec: StrategySpec, data: Data) -> pd.DataFrame:
     else:
         records = run_intraday(spec, data.intraday[spec.timeframe], data.feats)
     columns = ["symbol", "date", "entry_ts", "exit_ts", "direction", "raw", "window", "reason"]
+    if spec.timeframe == "1d":
+        columns += ["path_days", "path_ret"]      # the position's P&L day by day (swing overlap)
     trades = pd.DataFrame(records, columns=columns)
     opens, closes = data.panels[spec.timeframe]
-    return ev.attach_universe(trades, opens, closes)
+    trades = ev.attach_universe(trades, opens, closes)
+    if spec.timeframe == "1d":
+        trades = ev.attach_universe_paths(trades, opens, closes)
+    return trades
 
 
 def drift_reference(data: Data) -> dict:
@@ -305,7 +313,7 @@ def snapshot_dict(study: Study) -> dict:
             "timeframe": spec.timeframe, "name_en": spec.name_en, "name_de": spec.name_de,
             "params": spec.params, "note": spec.note,
             "verdict": res.get("verdict"), "strong": res.get("strong"),
-            "beats_drift": res.get("beats_drift"),
+            "beats_drift": res.get("beats_drift"), "label": res.get("label"),
             "IS": res["IS"], "OOS": res.get("OOS"), "ALL": res.get("ALL"),
             "cost_sensitivity": res["cost_sensitivity"], "baselines": res["baselines"],
         })
@@ -318,6 +326,9 @@ def snapshot_dict(study: Study) -> dict:
         "variants_tried": study.variants_tried,
         "drift_reference": study.drift,
         "simulation_only": True,
+        # estimand: every decision (verdict clauses, beats_drift, label) reads the judged
+        # series (day trades: entry-day mean; swing: calendar-time portfolio), see evaluate
+        "corrected_after_review": True,
         "strategies": strategies,
     })
 
@@ -345,7 +356,10 @@ def _pct(x) -> str:
 
 
 VERDICT_DE = {"validated": "belegt", "experimental": "experimentell", "rejected": "verworfen"}
+LABEL_DE = {"validated": "belegt", "experimental": "experimentell",
+            "beta": "formal bestanden, aber nur Marktrendite", "rejected": "verworfen"}
 TF_DE = {"1d": "Tagesbalken (10 J.)", "60m": "60-Min. (≈2 J.)", "5m": "5-Min. (≈2 Mon.)"}
+DAILY_HEADER = "Ø je Handelstag (Basis des t-Werts)"
 
 
 def _table(header: list[str], rows: list[list[str]]) -> str:
@@ -354,74 +368,155 @@ def _table(header: list[str], rows: list[list[str]]) -> str:
     return "\n".join(lines)
 
 
+def _label(res: dict) -> str:
+    return res.get("label") or ev.label_of(res.get("verdict"), res.get("beats_drift"))
+
+
 def _assessment(study: Study) -> list[str]:
     res = study.results
     ids = [s.id for s in study.specs]
-    verdicts = {i: res[i].get("verdict") for i in ids}
-    validated = [i for i in ids if verdicts[i] == "validated"]
-    experimental = [i for i in ids if verdicts[i] == "experimental"]
+    labels = {i: _label(res[i]) for i in ids}
+    validated = [i for i in ids if labels[i] == "validated"]
+    experimental = [i for i in ids if labels[i] == "experimental"]
+    beta = [i for i in ids if labels[i] == "beta"]
     is_hits = [i for i in ids if res[i]["IS"]["t_stat"] >= 2.0]
-    oos_pos = [i for i in ids if (res[i]["OOS"]["mean_net_bps"] or 0) > 0]
-    skill = [i for i in ids if res[i]["OOS"]["excess_t_stat"] >= 2.0]
+    oos_pos = [i for i in ids if (res[i]["OOS"]["mean_daily_net_bps"] or 0) > 0]
+    skill = [i for i in ids if res[i]["beats_drift"]]
+    negative = [i for i in ids
+                if res[i]["IS"]["t_stat"] <= -2.0 and res[i]["OOS"]["t_stat"] <= -2.0]
     n = study.variants_tried
     out = []
     if validated:
         out.append(
-            f"Nach den vorab festgelegten Regeln gelten {len(validated)} von {n} getesteten "
-            f"Varianten als belegt: {', '.join(validated)}. Das heißt: im Zeitraum vor UND nach "
-            "der Trennlinie ein positiver, statistisch erkennbarer Netto-Ertrag nach Kosten.")
+            f"Nach den vorab festgelegten Regeln UND gegenüber der Marktdrift gelten {len(validated)} "
+            f"von {n} getesteten Varianten als belegt: {', '.join(validated)}.")
     else:
         out.append(
-            f"Keine der {n} getesteten Varianten erfüllt die vorab festgelegten Kriterien für "
-            "„belegt“. Nach Kosten ist in diesen Daten kein verlässlicher Vorteil nachgewiesen.")
+            f"Keine der {n} getesteten Varianten ist belegt: Keine erfüllt die vorab festgelegten "
+            "Kriterien für „belegt“ UND schlägt zugleich die Marktdrift. Nach Kosten ist in diesen "
+            "Daten kein verlässlicher Vorteil nachgewiesen.")
     if experimental:
-        out.append(f"Als „experimentell“ (Hinweis, kein Beleg) gelten: {', '.join(experimental)}.")
+        out.append(f"Als „experimentell“ (Hinweis, kein Beleg; Kriterien erfüllt und Marktdrift "
+                   f"geschlagen) gelten: {', '.join(experimental)}.")
+    for i in beta:
+        o, b = res[i]["OOS"], res[i]["baselines"]["OOS"]
+        out.append(
+            f"**Wichtig zu {i}:** Die vorab festgelegten Kriterien für „{VERDICT_DE[res[i]['verdict']]}“ "
+            f"sind formal bestanden (der Netto-Ertrag nach Kosten war positiv), aber der Ertrag ist nur "
+            f"die Marktrendite. Gegenüber dem Durchschnitt des Universums im gleichen Zeitfenster "
+            f"beträgt der Excess im OOS {_n(o['mean_daily_excess_bps'])} bp je Handelstag "
+            f"(t = {_n(o['excess_t_stat'], 2)}), und die Basislinie „immer Long“ über dieselben "
+            f"Fenster erzielt {_n(b['always_long_net_bps'])} bp je Trade gegenüber "
+            f"{_n(b['strategy_dir_net_bps'])} bp bei der eigenen Richtung. Der Ertrag stammt "
+            "also aus der Marktdrift (ein steigender Aktienmarkt, plus Survivorship-Bias der "
+            "heutigen Large Caps), nicht aus einem Können der Regel: kein gemessener Vorteil. "
+            "Wer Long-Aktien hält, verdient dasselbe, ohne die Regel zu brauchen. Deshalb heißt "
+            f"{i} im Bericht und in den Daten „beta“ und erzeugt standardmäßig keine Ideen.")
     out.append(
         f"{len(is_hits)} Variante(n) erreichten im Lernzeitraum (IS) einen t-Wert von mindestens 2 "
         f"({', '.join(is_hits) or 'keine'}). Bei {n} Versuchen sind einzelne t-Werte um 2 allein "
         "durch Zufall zu erwarten. Maßgeblich ist der unberührte Testzeitraum (OOS): dort hatten "
-        f"{len(oos_pos)} Variante(n) einen positiven Netto-Durchschnitt "
+        f"{len(oos_pos)} Variante(n) einen positiven Netto-Durchschnitt je Handelstag "
         f"({', '.join(oos_pos) or 'keine'}).")
-    for i in validated + experimental:
-        o, b = res[i]["OOS"], res[i]["baselines"]["OOS"]
-        if not res[i]["beats_drift"]:
-            out.append(
-                f"**Wichtig zu {i}:** Das Urteil „{VERDICT_DE[verdicts[i]]}“ besagt nur, dass der "
-                f"Netto-Ertrag nach Kosten positiv war. Gegenüber dem Durchschnitt des Universums "
-                f"im gleichen Zeitfenster beträgt der Excess im OOS {_n(o['mean_excess_bps'])} bp "
-                f"(t = {_n(o['excess_t_stat'], 2)}), und die Basislinie „immer Long“ über dieselben "
-                f"Fenster erzielt {_n(b['always_long_net_bps'])} bp gegenüber "
-                f"{_n(b['strategy_dir_net_bps'])} bp bei der eigenen Richtung. Der Ertrag stammt "
-                "also aus der Marktdrift (ein steigender Aktienmarkt, plus Survivorship-Bias der "
-                "heutigen Large Caps), nicht aus einem Können der Regel. Wer Long-Aktien hält, "
-                "verdient dasselbe, ohne die Regel zu brauchen.")
     if skill:
         out.append(
-            "Über den Marktdurchschnitt hinaus (Excess, t ≥ 2 im OOS) zeigten sich Hinweise bei: "
-            f"{', '.join(skill)}.")
+            "Über den Marktdurchschnitt hinaus (Excess, t ≥ 2 und > 0 im OOS) zeigten sich Hinweise "
+            f"bei: {', '.join(skill)}.")
     else:
         out.append(
             "Über die allgemeine Marktdrift hinaus (Excess gegenüber dem Durchschnitt des "
             "Universums) ließ sich im OOS bei keiner Variante ein Können mit t ≥ 2 belegen. "
             "Long-Regeln verdienen in einem steigenden Markt ohnehin etwas; das ist keine Fertigkeit.")
+    if negative:
+        parts = []
+        for i in negative:
+            r = res[i]
+            parts.append(
+                f"{i} (t IS {_n(r['IS']['t_stat'], 2)}, OOS {_n(r['OOS']['t_stat'], 2)}, gesamt "
+                f"{_n(r['ALL']['t_stat'], 2)}; Ø brutto je Trade IS {_n(r['IS']['mean_gross_bps'])} bp, "
+                f"OOS {_n(r['OOS']['mean_gross_bps'])} bp)")
+        gross = [r[k]["mean_gross_bps"] for i in negative for r in (res[i],) for k in ("IS", "OOS")]
+        out.append(
+            "Signifikant **negativ** (IS-t ≤ −2 und OOS-t ≤ −2) sind: " + "; ".join(parts) + ". "
+            "Das ist überwiegend die Kostenwirkung und keine nachgewiesene Gegenrichtung: vor "
+            f"Kosten liegt der Ø brutto je Trade bei diesen Regeln nahe null (zwischen {_n(min(gross))} "
+            f"und {_n(max(gross))} bp), die Kosten ({_n(COSTS_BPS['day'], 0)} bp je Daytrade, "
+            f"{_n(COSTS_BPS['swing'], 0)} bp je Swing-Trade) machen das Ergebnis erst signifikant "
+            "negativ. Die Umkehrung der Signale wäre deshalb kein Gewinn: auch die Gegenrichtung "
+            "zahlt die Kosten.")
     return out
 
 
-def write_report(study: Study, path: str | Path) -> Path:
-    """The German research report for a non-technical reader."""
+def _arrow(before, after, nd=1, pct=False) -> str:
+    fmt = (lambda x: _pct(x)) if pct else (lambda x: _n(x, nd))
+    if before is None:
+        return fmt(after)
+    return fmt(after) if fmt(before) == fmt(after) else f"{fmt(before)} → {fmt(after)}"
+
+
+def _before_after(study: Study, before: dict) -> list[str]:
+    """The before/after table of every strategy and the rows that changed."""
+    old = {s["id"]: s for s in before.get("strategies", [])}
+    rows, changed = [], []
+    for spec in study.specs:
+        new = study.results[spec.id]
+        o = old.get(spec.id)
+        if o is None:
+            continue
+        o_oos, n_oos = o["OOS"], new["OOS"]
+        o_label = o.get("label") or ev.label_of(o.get("verdict"), o.get("beats_drift"))
+        n_label = _label(new)
+        is_changed = (o["verdict"] != new["verdict"] or o_label != n_label
+                      or round(o_oos["t_stat"], 2) != round(n_oos["t_stat"], 2)
+                      or round(o["IS"]["t_stat"], 2) != round(new["IS"]["t_stat"], 2)
+                      or o["IS"]["n_trades"] != new["IS"]["n_trades"]
+                      or o_oos["n_trades"] != n_oos["n_trades"])
+        if is_changed:
+            changed.append(spec.id)
+        d_old = o_oos.get("mean_daily_net_bps")
+        rows.append([
+            f"**{spec.id}**" if is_changed else spec.id,
+            _arrow(o_oos["n_trades"], n_oos["n_trades"], 0),
+            _arrow(o_oos["mean_net_bps"], n_oos["mean_net_bps"]),
+            _arrow(d_old, n_oos["mean_daily_net_bps"]),
+            _arrow(o["IS"]["t_stat"], new["IS"]["t_stat"], 2),
+            _arrow(o_oos["t_stat"], n_oos["t_stat"], 2),
+            VERDICT_DE[o["verdict"]] if o["verdict"] == new["verdict"]
+            else f"{VERDICT_DE[o['verdict']]} → {VERDICT_DE[new['verdict']]}",
+            LABEL_DE[o_label] if o_label == n_label else f"{LABEL_DE[o_label]} → {LABEL_DE[n_label]}",
+        ])
+    out = [_table(["ID", "OOS Trades", "OOS Ø je Trade (bp)", "OOS " + DAILY_HEADER + " (bp)",
+                   "IS t", "OOS t", "Urteil (vorab festgelegt)", "Etikett"], rows)]
+    out.append("\nFett = Zeile hat sich geändert (Trade-Zahl, IS-t, OOS-t, Urteil oder Etikett). "
+               "„Vorher“ ist der Stand vor der Korrektur (Datei `validated_before_review.json`). "
+               "Bei „vorher“ war „Ø je Handelstag“ der Mittelwert der Tages-Cluster nach "
+               "Einstiegstag, „nachher“ derselbe Wert (Tagestrader) bzw. der des "
+               "Kalenderzeit-Portfolios (Swing).")
+    out.append(f"\nGeänderte Zeilen: {', '.join(changed) or 'keine'}.")
+    return out
+
+
+def write_report(study: Study, path: str | Path, before: dict | None = None) -> Path:
+    """The German research report for a non-technical reader.
+
+    ``before``: the snapshot of the study before the review's corrections, for the
+    before/after table.
+    """
     if not study.include_oos:
         raise ValueError("the report needs the out-of-sample results (include_oos=True)")
     res, specs = study.results, study.specs
     inv = study.data_windows["inventory"]
+    n_etf = len(EXTRA_SYMBOLS)
     L: list[str] = []
     L.append("# Kurzfrist-Handel: Simulation und ehrliche Bewertung")
     L.append(f"\nStudienstand: {study.as_of}. Alles ist eine **Simulation auf historischen "
              "Yahoo-Kursen**. Es wird nichts bei einem Broker ausgeführt, und eine Simulation ist "
-             "keine echte Ausführung.\n")
+             "keine echte Ausführung. Dies ist die Fassung **nach einer unabhängigen Prüfung**; "
+             "Abschnitt 9 sagt, was korrigiert wurde und was sich dadurch geändert hat.\n")
     L.append("## 1. Was getestet wurde")
     L.append(
-        f"- **Universum:** {inv['1d']['symbols']} liquide US-Werte (Large Caps aller Sektoren) "
-        "plus die ETFs SPY, QQQ, IWM, DIA.\n"
+        f"- **Universum:** {inv['1d']['symbols'] - n_etf} liquide US-Einzelwerte (Large Caps aller "
+        f"Sektoren) plus die {n_etf} ETFs SPY, QQQ, IWM, DIA = {inv['1d']['symbols']} Symbole.\n"
         f"- **Tagesbalken:** {study.splits['1d']['is_first']} bis {study.splits['1d']['oos_last']} "
         f"(≈10 Jahre, {study.splits['1d']['n_is_days'] + study.splits['1d']['n_oos_days']} Handelstage).\n"
         f"- **60-Minuten-Balken:** {study.splits['60m']['is_first']} bis "
@@ -437,61 +532,95 @@ def write_report(study: Study, path: str | Path) -> Path:
         "- **Ausführung streng:** Ein Signal aus dem Schlusskurs eines Balkens wird erst zur "
         "Eröffnung des nächsten Balkens gehandelt. Stop und Ziel im selben Balken: der Stop gilt "
         "zuerst. Eröffnet ein Balken jenseits des Stops, wird zum schlechteren Eröffnungskurs "
-        "ausgestoppt.\n"
+        "ausgestoppt. Bei M3 (VWAP-Rückkehr) liegt der Stop 1 σ vom tatsächlichen Einstiegskurs "
+        "entfernt (nicht 1 σ jenseits der 2-σ-Auslöseschwelle, wie ursprünglich geplant); das "
+        "Ziel ist das VWAP.\n"
+        "- **Vorheriger Schlusskurs der Intraday-Regeln:** Er stammt aus dem letzten Balken der "
+        "vorherigen Intraday-Sitzung, nicht aus den Tagesbalken (siehe Abschnitt 7, Datenfehler "
+        "H-1).\n"
         "- **Lern- und Testzeitraum:** Die ersten 70 % der Handelstage jedes Datensatzes sind der "
         "Lernzeitraum (IS), die letzten 30 % der Testzeitraum (OOS). Parameter wurden nur im IS "
         "gewählt; der OOS wurde je Kandidat einmal ausgewertet und wird hier unverändert berichtet.\n"
-        "- **Signifikanz:** Trades desselben Tages sind stark verwandt. Der t-Wert wird deshalb "
-        "über Tagesmittelwerte gerechnet; das 95 %-Intervall zieht ganze Tage neu (2000 Ziehungen). "
-        "Als grobe Regel: |t| unter 2 ist von Zufall nicht zu unterscheiden.")
+        "- **Signifikanz, eine Größe für alle Entscheidungen:** Jede Strategie hat **eine** "
+        "Tagesreihe, die „Basis des t-Werts“. Bei Daytrades ist es der Mittelwert der Trades des "
+        "Einstiegstags. Bei Swing-Trades, deren Positionen bis zu 10 Tage offen sind und sich "
+        "überlappen, ist es das **Kalenderzeit-Portfolio**: jeden Kalendertag der Durchschnitt der "
+        "Tagesergebnisse aller an dem Tag offenen Positionen, Kosten am Ausstiegstag abgezogen. "
+        "t-Wert, 95 %-Intervall (zieht ganze Tage neu, 2000 Ziehungen), die Kostenbedingung des "
+        "Urteils (OOS-Ergebnis bei doppelten Kosten > 0) und die Frage „schlägt die Marktdrift?“ "
+        "verwenden alle den Mittelwert **dieser** Reihe. Der Durchschnitt je Trade steht "
+        "daneben nur zur Information (er gewichtet Tage mit vielen Signalen stärker). Als grobe "
+        "Regel: |t| unter 2 ist von Zufall nicht zu unterscheiden.")
     L.append(f"\n**Anzahl getesteter Varianten insgesamt: {study.variants_tried}** "
              f"({len(PRE_REGISTERED)} vorab festgelegte, {len(VARIANTS)} nachträgliche).\n")
 
     L.append("## 2. Ergebnisse je Strategie (netto nach Kosten)")
-    L.append("Ø bp = durchschnittlicher Netto-Ertrag je Trade in Basispunkten; t = Tages-geclusterter "
-             "t-Wert (gehört zum Durchschnitt der Tageserträge; der Trade-Durchschnitt kann an "
-             "Tagen mit vielen Trades davon abweichen, auch im Vorzeichen); Intervall = 95 %-Intervall des durchschnittlichen **Tagesertrags** (bp) im OOS.\n")
+    L.append("„Ø je Trade“ = durchschnittlicher Netto-Ertrag je Trade in Basispunkten (zur "
+             "Information; kann an Tagen mit vielen Trades vom Tageswert abweichen, auch im "
+             f"Vorzeichen). „{DAILY_HEADER}“ = Mittelwert der Tagesreihe, zu der der t-Wert gehört "
+             "(Swing: Kalenderzeit-Portfolio, siehe Abschnitt 1). t = t-Wert dieser Reihe; "
+             "Intervall = 95 %-Intervall von „Ø je Handelstag“ im OOS (bp). Treffer = Anteil der "
+             "Trades mit Gewinn.\n")
     rows = []
     for s in specs:
         r = res[s.id]
         i, o = r["IS"], r["OOS"]
+        lab = _label(r)
+        mark = "**" if lab != "rejected" else ""
         rows.append([
             s.id, s.name_de, TF_DE[s.timeframe],
-            str(i["n_trades"]), _pct(i["win_rate"]), _n(i["mean_net_bps"]), _n(i["t_stat"], 2),
-            str(o["n_trades"]), _pct(o["win_rate"]), _n(o["mean_net_bps"]), _n(o["t_stat"], 2),
+            str(i["n_trades"]), _pct(i["win_rate"]), _n(i["mean_net_bps"]),
+            _n(i["mean_daily_net_bps"]), _n(i["t_stat"], 2),
+            str(o["n_trades"]), _pct(o["win_rate"]), _n(o["mean_net_bps"]),
+            _n(o["mean_daily_net_bps"]), _n(o["t_stat"], 2),
             f"[{_n(o['ci_low_bps'])}; {_n(o['ci_high_bps'])}]",
-            ("**" if r["verdict"] != "rejected" else "") + VERDICT_DE[r["verdict"]]
-            + (" (stark)" if r["strong"] else "") + ("**" if r["verdict"] != "rejected" else ""),
+            mark + LABEL_DE[lab] + (" (stark)" if r["strong"] and lab == "validated" else "") + mark,
         ])
-    L.append(_table(["ID", "Strategie", "Daten", "IS Trades", "IS Treffer", "IS Ø bp", "IS t",
-                     "OOS Trades", "OOS Treffer", "OOS Ø bp", "OOS t", "OOS 95 %-Intervall",
-                     "Urteil"], rows))
-    L.append("\nUrteilsregeln (vorab festgelegt): *belegt* = IS-t ≥ 2 und OOS-t ≥ 2 (beide positiv), "
-             "OOS-Durchschnitt auch bei doppelten Kosten > 0, mindestens 100 OOS-Trades an ≥ 20 "
-             "OOS-Tagen. *experimentell* = IS-t ≥ 2, OOS-Durchschnitt > 0, OOS-t ≥ 1, ≥ 50 OOS-Trades. "
-             "Alles andere *verworfen*. „stark“ nur bei gepooltem t ≥ 3. Die 5-Minuten-Strategien haben "
-             f"nur {study.splits['5m']['n_oos_days']} OOS-Tage und können die Regel für „belegt“ konstruktionsbedingt nicht erfüllen.")
+    L.append(_table(["ID", "Strategie", "Daten", "IS Trades", "IS Treffer", "IS Ø je Trade",
+                     "IS " + DAILY_HEADER, "IS t", "OOS Trades", "OOS Treffer", "OOS Ø je Trade",
+                     "OOS " + DAILY_HEADER, "OOS t", "OOS 95 %-Intervall", "Urteil"], rows))
+    L.append("\nUrteilsregeln (vorab festgelegt, alle Mittelwerte = „Ø je Handelstag“): *belegt* = "
+             "IS-t ≥ 2 und OOS-t ≥ 2 (beide positiv), OOS-Mittel auch bei doppelten Kosten > 0, "
+             "mindestens 100 OOS-Trades an ≥ 20 OOS-Tagen. *experimentell* = IS-t ≥ 2, OOS-Mittel > 0, "
+             "OOS-t ≥ 1, ≥ 50 OOS-Trades. Alles andere *verworfen*. „stark“ nur bei gepooltem t ≥ 3 "
+             "**und** geschlagener Marktdrift. **Etikett** (abgeleitet, nach dem Urteil): *belegt* / "
+             "*experimentell* nur, wenn das Urteil so lautet UND die Regel die Marktdrift schlägt "
+             "(Excess-t ≥ 2 und Excess > 0 im OOS); besteht sie das Urteil, schlägt aber die "
+             "Marktdrift nicht, heißt sie *formal bestanden, aber nur Marktrendite* (in den Daten "
+             "„beta“). Die 5-Minuten-Strategien haben "
+             f"nur {study.splits['5m']['n_oos_days']} OOS-Tage und können die Regel für „belegt“ "
+             "konstruktionsbedingt nicht erfüllen.")
 
     L.append("\n### Brutto, Excess und Long/Short (OOS)")
     L.append("Excess = Ertrag abzüglich des Durchschnitts des gesamten Universums im gleichen "
-             "Zeitfenster (Short: umgekehrt). Nur der Excess ist Können; der Rest ist Marktdrift.\n")
+             "Zeitfenster (Short: umgekehrt). Nur der Excess ist Können; der Rest ist Marktdrift. "
+             "Sharpe wird nur über die Handelstage mit Position gerechnet (Tage ohne Trade zählen "
+             "nicht) und ist deshalb höher als bei einem ganzjährig investierten Portfolio. "
+             "Max. Drawdown = größter Rückgang der **zusammengesetzten** Kapitalkurve der "
+             "Tagesreihe in % (höchstens 100 %).\n")
     rows = []
     for s in specs:
         o = res[s.id]["OOS"]
         rows.append([s.id, _n(o["mean_gross_bps"]), _n(o["median_net_bps"]),
-                     _n(o["profit_factor"], 2), _n(o["mean_excess_bps"]), _n(o["excess_t_stat"], 2),
+                     _n(o["profit_factor"], 2), _n(o["mean_excess_bps"]),
+                     _n(o["mean_daily_excess_bps"]), _n(o["excess_t_stat"], 2),
                      f"{o['long']['n_trades']} / {_n(o['long']['mean_net_bps'])}",
                      f"{o['short']['n_trades']} / {_n(o['short']['mean_net_bps'])}",
                      _n(o["sharpe"], 2), _n(o["max_drawdown_pct"], 1) + " %"])
-    L.append(_table(["ID", "Ø brutto bp", "Median netto bp", "Profit-Faktor", "Ø Excess bp",
-                     "Excess t", "Long: Trades / Ø bp", "Short: Trades / Ø bp", "Sharpe (Tage)",
-                     "Max. Drawdown"], rows))
+    L.append(_table(["ID", "Ø brutto je Trade (bp)", "Median netto je Trade (bp)", "Profit-Faktor",
+                     "Ø Excess je Trade (bp)", "Ø Excess je Handelstag (bp, Basis des Excess-t)",
+                     "Excess t", "Long: Trades / Ø bp je Trade", "Short: Trades / Ø bp je Trade",
+                     "Sharpe (nur Handelstage mit Position)", "Max. Drawdown (zusammengesetzt)"], rows))
 
     L.append("\n## 3. Vergleich mit Baselines (OOS)")
-    L.append("Gleiche Trades und Zeitfenster, aber ohne Stop: **immer Long**, die **eigenen "
-             "Richtungen** der Strategie und **Zufallsrichtung** (200 Wiederholungen, Ø und "
-             "95 %-Band). Liegt die eigene Richtung nicht über dem Zufallsband, steckt in der "
-             "Richtungswahl kein Können.\n")
+    L.append("Auf den **eigenen Trade-Fenstern der Strategie (einschließlich ihres Ausstiegstags)**: "
+             "Jedes Fenster läuft von der Einstiegseröffnung bis zum Schluss des Balkens, an dem die "
+             "Strategie ausgestiegen ist; ein ausgestoppter Trade endet also am Stopptag. Die "
+             "Baselines sind damit nicht „ohne Stop“ im strengen Sinn, sondern an den Ausstieg der "
+             "Strategie gebunden. Verglichen werden **immer Long**, die **eigenen Richtungen** der "
+             "Strategie (jeweils ohne Stop innerhalb des Fensters) und **Zufallsrichtung** "
+             "(200 Wiederholungen, Ø und 95 %-Band). Liegt die eigene Richtung nicht über dem "
+             "Zufallsband, steckt in der Richtungswahl kein Können. Alle Werte sind Ø je Trade.\n")
     rows = []
     for s in specs:
         b = res[s.id]["baselines"]["OOS"]
@@ -510,28 +639,47 @@ def write_report(study: Study, path: str | Path) -> Path:
              f"{_n(d['IS']['hold5_bps'])} bp (IS) / {_n(d['OOS']['hold5_bps'])} bp (OOS). "
              "Der Aktienmarkt stieg im Testzeitraum; jede Long-Regel profitiert davon.")
 
-    L.append("\n## 4. Kostenempfindlichkeit (Ø Netto bp je Trade, OOS)")
+    L.append("\n## 4. Kostenempfindlichkeit (OOS, " + DAILY_HEADER + " in bp, t-Wert der Reihe)")
     rows = []
     for s in specs:
         cs = res[s.id]["cost_sensitivity"]
-        rows.append([s.id] + [f"{_n(cs[k]['OOS']['mean_net_bps'])} (t {_n(cs[k]['OOS']['t_stat'], 2)})"
-                              for k in ("1x", "2x", "4x")])
+        rows.append([s.id] + [
+            f"{_n(cs[k]['OOS']['mean_daily_net_bps'])} (t {_n(cs[k]['OOS']['t_stat'], 2)})"
+            for k in ("1x", "2x", "4x")])
     L.append(_table(["ID", "Basiskosten", "2× Kosten", "4× Kosten"], rows))
 
-    L.append("\n## 5. Was verbessert wurde (und was nicht)")
+    L.append("\n## 5. Was verbessert wurde (und was nicht), und was offenzulegen ist")
     L.append(f"Nach den ersten IS-Ergebnissen wurden {len(VARIANTS)} zusätzliche Varianten "
              "ausprobiert (erlaubt waren höchstens 8), jede mit einer Begründung, **alle "
              "protokolliert, auch die Fehlschläge**, und nur im IS gewählt. Danach wurde der OOS "
-             "einmal für alle ausgewertet; es wurde nicht zurückgegangen und nachjustiert.\n")
+             "einmal für alle ausgewertet; es wurde nichts an den Regeln oder Parametern "
+             "nachjustiert. **Zwei Dinge sind dabei offenzulegen:**\n\n"
+             "1. **S3l (Ausbruch mit Volumen, nur Long)** wurde im IS wegen des positiven "
+             "Brutto-Ergebnisses der Long-Seite gewählt, obwohl sein IS-Excess gegenüber dem "
+             "Marktdurchschnitt schon damals bei −0,4 bp lag (t = −0,09). Dass sich im OOS "
+             "dasselbe Bild zeigt (Ertrag = Marktrendite), ist deshalb keine Überraschung.\n"
+             "2. **Das Kriterium „schlägt die Marktdrift“ (`beats_drift`) wurde erst nach dem "
+             "ersten vollständigen Lauf ergänzt**, nachdem die OOS-Ergebnisse bereits bekannt "
+             "waren (der erste Lauf, `validated_run1.json`, enthält diese Kennzahl nicht). "
+             "Alle Zahlen des ersten Laufs waren identisch zu denen des zweiten, es wurde "
+             "nichts neu eingestellt; die Kennzahl ist aber ein nachträglich hinzugefügter "
+             "Filter und kein vorab festgelegter. Sie ändert nur, wie Ergebnisse benannt werden, "
+             "nie, ob eine Regel Geld verdient hat.\n\n"
+             "Außerdem wurden **die Statistiken nach einer unabhängigen Prüfung korrigiert** "
+             "(Datenfehler H-1, Überlappung der Swing-Trades M-1, einheitliche Größe M-2), "
+             "die Regeln selbst aber nicht verändert. Die Vorher/Nachher-Tabelle steht in "
+             "Abschnitt 9.\n")
     rows = []
     for s in specs:
         if s.id in {v.id for v in VARIANTS}:
             r = res[s.id]
             rows.append([s.id, s.name_de, s.note_de, _n(r["IS"]["mean_net_bps"]),
-                         _n(r["IS"]["t_stat"], 2), _n(r["OOS"]["mean_net_bps"]),
-                         _n(r["OOS"]["t_stat"], 2), VERDICT_DE[r["verdict"]]])
-    L.append(_table(["ID", "Variante", "Begründung (nur IS-Evidenz)", "IS Ø bp", "IS t",
-                     "OOS Ø bp", "OOS t", "Urteil"], rows))
+                         _n(r["IS"]["mean_daily_net_bps"]), _n(r["IS"]["t_stat"], 2),
+                         _n(r["OOS"]["mean_net_bps"]), _n(r["OOS"]["mean_daily_net_bps"]),
+                         _n(r["OOS"]["t_stat"], 2), LABEL_DE[_label(r)]])
+    L.append(_table(["ID", "Variante", "Begründung (nur IS-Evidenz)", "IS Ø je Trade",
+                     "IS " + DAILY_HEADER, "IS t", "OOS Ø je Trade", "OOS " + DAILY_HEADER,
+                     "OOS t", "Etikett"], rows))
 
     L.append("\n## 6. Ehrliche Gesamteinschätzung")
     for para in _assessment(study):
@@ -541,6 +689,18 @@ def write_report(study: Study, path: str | Path) -> Path:
     L.append(
         "- **Survivorship-Bias:** Das Universum sind die heutigen Large Caps, rückwirkend "
         "angewandt; Verlierer von gestern fehlen. Das begünstigt vor allem Long-Regeln.\n"
+        "- **Dividendenbereinigung (Datenfehler H-1, korrigiert):** Yahoo bereinigt Tagesbalken um "
+        "Dividenden, Intraday-Balken nicht. Die erste Fassung verglich den (bereinigten) "
+        "Tagesschlusskurs mit unbereinigten Intraday-Kursen; der „vorherige Schlusskurs“ lag zu "
+        "Beginn des 60-Minuten-Fensters um bis zu 12 % zu niedrig (Median 370 bp in den ersten "
+        "20 Tagen), was H1/H1b fast immer auf „Long“ stellte und M2a/M2b verfälschte. Jetzt kommt "
+        "der vorherige Schlusskurs aus dem letzten Intraday-Balken der Vorsitzung (gleiche Quelle, "
+        "gleiche Bereinigung); Symbol-Tage ohne vorherige Intraday-Sitzung entfallen, ebenso solche, "
+        "deren Vorsitzung nicht mit dem Schlussbalken endet (fehlender letzter Balken, 325 "
+        "Symbol-Tage im 60-Minuten-Datensatz), weil deren letzter Kurs nicht der Schlusskurs ist. "
+        "Restrisiko: Die Intraday-Daten enthalten Dividenden-Abschläge als echte Kurslücken "
+        "(wie im realen Handel); Trendflags und ATR% stammen weiter aus bereinigten Tagesbalken "
+        "(Verhältniszahlen, davon kaum berührt).\n"
         "- **Yahoo-Datenqualität intraday:** fehlende Balken, Halbtage und gelegentliche "
         "Ausreißer; unvollständige Handelstage wurden ausgelassen "
         f"(60 Min.: {inv['60m']['complete_symbol_sessions']} von {inv['60m']['symbol_sessions']} "
@@ -553,29 +713,60 @@ def write_report(study: Study, path: str | Path) -> Path:
         "- **Gap-Strategien auf Tagesbalken** (D1/D2) setzen voraus, dass man zum "
         "Eröffnungskurs handeln kann, den man erst kennt, wenn er entsteht; M2a/M2b prüfen das "
         "realistischer.\n"
-        "- **Swing-Trades überlappen:** Tagescluster berücksichtigen Überlappung mehrtägiger "
-        "Positionen nur teilweise; t-Werte der Swing-Strategien sind eher zu optimistisch. "
-        "S1 verlässt die Position zum Schlusskurs, den man erst am Ende des Tages kennt.\n"
+        "- **Swing-Trades überlappen:** Die Auswertung läuft deshalb auf dem Kalenderzeit-Portfolio "
+        "(Abschnitt 1) statt auf Einstiegstagen. Auch die Tageswerte dieses Portfolios sind "
+        "untereinander noch verwandt (Positionen laufen mehrere Tage); die t-Werte bleiben eher "
+        "optimistisch. S1 verlässt die Position zum Schlusskurs, den man erst am Ende des Tages "
+        "kennt.\n"
         "- **Mehrfachtests:** Bei vielen Varianten entstehen Treffer zufällig. Der OOS ist nur "
         "ein einziger Zeitraum und kann selbst Zufall sein.\n"
         "- **Simulation ≠ echte Ausführung:** Teilausführungen, Slippage in schnellen Märkten, "
         "Steuern und Verhalten sind nicht abgebildet.")
 
     L.append("\n## 8. Was daraus für die täglichen Empfehlungen folgt")
-    validated = [s for s in specs if res[s.id]["verdict"] == "validated"]
-    experimental = [s for s in specs if res[s.id]["verdict"] == "experimental"]
+    labels = {s.id: _label(res[s.id]) for s in specs}
+    validated = [i for i, v in labels.items() if v == "validated"]
+    experimental = [i for i, v in labels.items() if v == "experimental"]
+    beta = [i for i, v in labels.items() if v == "beta"]
     if validated:
-        L.append("Nur belegte Strategien (" + ", ".join(s.id for s in validated) + ") erzeugen "
-                 "gekennzeichnete Kurzfrist-Ideen (Horizont Tag/Swing, Einstieg zur nächsten "
-                 "Eröffnung, Stop, Haltedauer). Sie bleiben Simulationsergebnisse mit "
+        L.append("Nur als „belegt“ etikettierte Strategien (" + ", ".join(validated) + ") erzeugen "
+                 "standardmäßig gekennzeichnete Kurzfrist-Ideen (Horizont Tag/Swing, Einstieg zur "
+                 "nächsten Eröffnung, Stop, Haltedauer). Sie bleiben Simulationsergebnisse mit "
                  "Unsicherheit, keine Anlageberatung.")
     else:
-        L.append("Da keine Strategie belegt ist, erzeugt die tägliche Liste **keine** "
-                 "Kurzfrist-Ideen. „Kein Vorteil gefunden“ ist ein gültiges Ergebnis; "
-                 "Anlagehorizonte der übrigen Empfehlungen bleiben die der Analyse.")
+        L.append("Da keine Strategie belegt ist (Abschnitt 6), erzeugt die tägliche Liste "
+                 "standardmäßig **keine** Kurzfrist-Ideen. „Kein Vorteil gefunden“ ist ein gültiges "
+                 "Ergebnis; Anlagehorizonte der übrigen Empfehlungen bleiben die der Analyse.")
     if experimental:
-        L.append("Experimentelle Strategien (" + ", ".join(s.id for s in experimental) + ") "
+        L.append("Experimentelle Strategien (" + ", ".join(experimental) + ") "
                  "können auf Wunsch gesondert als „experimentell“ markiert angezeigt werden.")
+    if beta:
+        L.append("Formal bestandene Strategien ohne Vorteil gegenüber der Marktdrift (" + ", ".join(beta)
+                 + ", Etikett „beta“) erzeugen **keine** Ideen. Nur auf ausdrückliche Anfrage "
+                 "(`include_beta=True`) werden sie angezeigt, mit dem Pflichthinweis: „verdient nur, "
+                 "was der Markt in denselben Tagen ohnehin brachte; kein belegter Vorteil“.")
+
+    L.append("\n## 9. Korrekturen nach der unabhängigen Prüfung")
+    L.append(
+        "Eine unabhängige Prüfung hat die Zahlen der ersten Fassung nachgerechnet, die "
+        "Schlussfolgerung bestätigt (nach Kosten zeigt keine Regel Können, nichts schlägt die "
+        "Marktdrift, kein Look-ahead, der Simulator ist korrekt) und folgende Mängel gefunden, "
+        "die jetzt behoben sind. Es wurde keine Strategie verändert oder hinzugefügt:\n\n"
+        "- **H-1 Datenfehler:** vorheriger Schlusskurs der Intraday-Regeln aus der vorherigen "
+        "Intraday-Sitzung statt aus (dividendenbereinigten) Tagesbalken (Abschnitt 7).\n"
+        "- **H-2 Beschriftung:** Das vorab festgelegte Urteil bleibt unverändert, die Auszeichnung "
+        "„belegt“ gilt aber nur noch, wenn die Regel auch die Marktdrift schlägt; sonst "
+        "„formal bestanden, aber nur Marktrendite“. Die Kurzfrist-Ideen der Tagesliste folgen "
+        "dem Etikett.\n"
+        "- **M-1 Überlappung:** t-Werte der Swing-Strategien jetzt auf dem Kalenderzeit-"
+        "Portfolio statt nach Einstiegstag.\n"
+        "- **M-2 eine Größe:** Kostenbedingung und Marktdrift-Kriterium verwenden den Mittelwert "
+        "derselben Reihe wie der t-Wert; „Ø je Trade“ bleibt als Information.\n"
+        "- Kleinere Punkte: Beschreibung der Baselines, Drawdown auf zusammengesetzter Kurve, "
+        "Zählung des Universums, Wortlaut zu den signifikant negativen Regeln und zu den "
+        "Variantenbegründungen, Alterskontrollen der Live-Ideen.\n")
+    if before:
+        L.extend(_before_after(study, before))
     out = Path(path)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text("\n".join(L) + "\n", encoding="utf-8")
@@ -589,6 +780,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", required=True, help="directory for validated.json and the report")
     parser.add_argument("--as-of", default=None, help="study date YYYY-MM-DD (default: yesterday)")
     parser.add_argument("--cache", default=None, help="directory caching the Yahoo downloads")
+    parser.add_argument("--before", default=None,
+                        help="snapshot of the study before the review corrections, for the "
+                             "before/after table (default: <out>/validated_before_review.json)")
     parser.add_argument("--update-package", action="store_true",
                         help="also overwrite the packaged validated.json that live.py reads")
     args = parser.parse_args(argv)
@@ -597,8 +791,10 @@ def main(argv: list[str] | None = None) -> int:
         (pd.Timestamp.now(tz="America/New_York").normalize() - pd.Timedelta(days=1)).date())
     study = run_study(as_of, args.cache, include_oos=True)
     out = Path(args.out)
+    before_path = Path(args.before) if args.before else out / "validated_before_review.json"
+    before = json.loads(before_path.read_text(encoding="utf-8")) if before_path.exists() else None
     write_snapshot(study, out / SNAPSHOT_NAME)
-    report = write_report(study, out / "BERICHT_Kurzfrist.md")
+    report = write_report(study, out / "BERICHT_Kurzfrist.md", before=before)
     if args.update_package:
         from tradingagents.scanner.shortterm.live import SNAPSHOT_PATH
         write_snapshot(study, SNAPSHOT_PATH)

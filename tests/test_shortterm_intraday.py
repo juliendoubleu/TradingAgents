@@ -73,3 +73,42 @@ def test_batches_of_25_and_an_empty_answer_is_an_error(monkeypatch):
 def test_unknown_interval_is_refused():
     with pytest.raises(ValueError):
         intraday.load_intraday_ohlcv(["AAA"], "1m", 5)
+
+
+@pytest.mark.unit
+def test_a_failing_batch_keeps_what_was_fetched_and_logs_the_failed_symbols(monkeypatch, caplog):
+    idx = pd.DatetimeIndex(["2024-01-03 14:30", "2024-01-03 15:30"], tz="UTC")
+
+    def fake_download(batch, **kwargs):
+        if "S25" in batch:
+            raise RuntimeError("boom")
+        return _download(list(batch), idx, with_nan_row=False)
+
+    monkeypatch.setattr(intraday.yf, "download", fake_download)
+    with caplog.at_level("WARNING"):
+        out = intraday.load_intraday_ohlcv([f"S{i}" for i in range(30)], "60m", 30, pause=0)
+    assert set(out) == {f"S{i}" for i in range(25)}          # batch 1 survived, batch 2 is out
+    assert "S25" in caplog.text and "S29" in caplog.text
+
+
+@pytest.mark.unit
+def test_the_load_raises_only_when_every_batch_failed(monkeypatch):
+    def fake_download(batch, **kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(intraday.yf, "download", fake_download)
+    with pytest.raises(VendorUnavailableError):
+        intraday.load_intraday_ohlcv(["AAA", "BBB"], "60m", 30, pause=0)
+
+
+@pytest.mark.unit
+def test_the_window_is_anchored_on_an_explicit_end_date_not_the_wall_clock(monkeypatch):
+    seen = {}
+
+    def fake_download(batch, **kwargs):
+        seen.update(kwargs)
+        return _download(["AAA"], pd.DatetimeIndex(["2024-06-14 14:30"], tz="UTC"), False)
+
+    monkeypatch.setattr(intraday.yf, "download", fake_download)
+    intraday.load_intraday_ohlcv(["AAA"], "60m", 30, pause=0, end="2024-06-14")
+    assert seen["start"] == "2024-05-15" and seen["end"] == "2024-06-15"   # end is exclusive

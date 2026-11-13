@@ -66,40 +66,65 @@ def load_intraday_ohlcv(
     days: int,
     tz: str = "America/New_York",
     pause: float = 0.5,
+    end: str | pd.Timestamp | None = None,
 ) -> dict[str, pd.DataFrame]:
-    """Regular-session intraday OHLCV (split/dividend adjusted) for each symbol.
+    """Regular-session intraday OHLCV for each symbol, NOT dividend-adjusted.
+
+    Yahoo adjusts daily bars for dividends (with ``auto_adjust=True``) but serves
+    intraday bars as traded: the price level of an intraday bar is the one that was on
+    the screen, so it differs from the adjusted daily close of the same day by the
+    dividends paid since (several percent for high yielders over two years). Never
+    compare an intraday price with a daily-bar price; take every reference level
+    (previous close, ...) from the intraday frame itself.
 
     ``interval`` is ``"5m"`` (at most the last 59 days are asked for) or ``"60m"``
     (at most 729). Returns ``{symbol: frame}`` with Open/High/Low/Close/Volume and a
     tz-aware ascending DatetimeIndex in ``tz`` (bar START times), without duplicates
     and without rows that lack a close. A symbol Yahoo has nothing for is absent;
     no symbol at all raises ``VendorUnavailableError``, which says Yahoo failed
-    rather than that every symbol is empty. ``pause`` seconds are slept between
-    batches to stay gentle with Yahoo.
+    rather than that every symbol is empty. A batch that keeps failing does not abort
+    the load: the symbols of the failed batches are logged and left out, and the error
+    is raised only when nothing at all came back. ``pause`` seconds are slept between
+    batches to stay gentle with Yahoo. ``end`` (a date, default: now) anchors the
+    window on the last session wanted, inclusive, instead of the wall clock; the
+    window is then ``days`` calendar days up to it.
     """
     if interval not in MAX_DAYS:
         raise ValueError(f"interval must be one of {sorted(MAX_DAYS)}, got {interval!r}")
     days = max(1, min(int(days), MAX_DAYS[interval]))
     wanted = list(dict.fromkeys(normalize_symbol(s) for s in symbols))
-    now = pd.Timestamp.now(tz="UTC")
-    start = (now - pd.Timedelta(days=days)).strftime("%Y-%m-%d")
-    end = (now + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+    last_day = pd.Timestamp.now(tz="UTC").tz_localize(None).normalize() if end is None \
+        else pd.Timestamp(end).tz_localize(None).normalize()
+    start = (last_day - pd.Timedelta(days=days)).strftime("%Y-%m-%d")
+    stop = (last_day + pd.Timedelta(days=1)).strftime("%Y-%m-%d")    # Yahoo's end is exclusive
 
     out: dict[str, pd.DataFrame] = {}
+    failed: list[str] = []
+    last_error: Exception | None = None
     for i in range(0, len(wanted), BATCH_SIZE):
         batch = wanted[i:i + BATCH_SIZE]
         if i and pause:
             time.sleep(pause)
-        raw = yf_retry(lambda batch=batch: yf.download(
-            batch, start=start, end=end, interval=interval, prepost=False,
-            auto_adjust=True, progress=False, threads=True, group_by="ticker",
-        ))
+        try:
+            raw = yf_retry(lambda batch=batch: yf.download(
+                batch, start=start, end=stop, interval=interval, prepost=False,
+                auto_adjust=True, progress=False, threads=True, group_by="ticker",
+            ))
+        except VendorUnavailableError as exc:
+            logger.warning("intraday batch %d-%d failed, symbols left out: %s (%s)",
+                           i, i + len(batch) - 1, ", ".join(batch), exc)
+            failed.extend(batch)
+            last_error = exc
+            continue
         for symbol in batch:
             frame = _extract(raw, symbol, single=len(batch) == 1, tz=tz)
             if frame is not None:
                 out[symbol] = frame
+    if failed:
+        logger.warning("intraday load kept %d of %d symbols; failed batches: %s",
+                       len(out), len(wanted), ", ".join(failed))
     if wanted and not out:
         raise VendorUnavailableError(
             f"Yahoo Finance returned no {interval} bars for any of {len(wanted)} symbols"
-        )
+        ) from last_error
     return out

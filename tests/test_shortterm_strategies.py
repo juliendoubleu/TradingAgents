@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from tradingagents.scanner.shortterm import StrategySpec, daily_features, daytrade as dt
+from tradingagents.scanner.shortterm import StrategySpec, daily_features, daytrade as dt, swing
 from tradingagents.scanner.shortterm.swing import ALL_DAILY_SIGNALS, daily_signal
 
 N = 330
@@ -322,14 +322,213 @@ def test_session_filter_accepts_only_complete_sessions_and_run_intraday_trades_t
     df = pd.DataFrame({"Open": np.r_[100.0, close[:-1]], "High": close + 0.2, "Low": close - 0.2,
                        "Close": close, "Volume": 1e6}, index=idx)
     daily = _frame(_uptrend())
-    daily.index = pd.bdate_range(end="2024-03-04", periods=N)
+    daily.index = pd.bdate_range(end="2024-03-05", periods=N)
     feats = {"AAA": daily_features(daily)}
     spec = StrategySpec("H1", "H1", "day", "60m", "x", "x", {})
     rows = dt.run_intraday(spec, {"AAA": df}, feats)
-    assert len(rows) == 2 and rows[0]["entry_ts"] == idx[6]     # last bar's open
-    assert {r["direction"] for r in rows} <= {1, -1}
+    # the first session has no previous intraday session (no prev_close) and is skipped
+    assert len(rows) == 1 and rows[0]["entry_ts"] == idx[13]    # last bar's open
+    assert rows[0]["direction"] == -1                           # 99 vs previous intraday close 101
 
 
 @pytest.mark.unit
 def test_every_daily_family_is_registered_for_the_study_and_for_live():
     assert set(ALL_DAILY_SIGNALS) == {"D1", "D2", "D3", "D4", "D5", "S1", "S2", "S3", "S4"}
+
+
+# ----------------------------------------------------------------------- H-1: previous close
+
+
+def _two_sessions_60m(first_close=100.0, second_first_close=99.8, *, truncate_first=False,
+                      days=("2024-03-04", "2024-03-05")):
+    idx_all, close = [], []
+    for k, day in enumerate(days):
+        n = 7
+        times = [pd.Timestamp(f"{day} 09:30") + pd.Timedelta(minutes=60 * i) for i in range(n)]
+        c = np.full(n, first_close if k == 0 else 100.0)
+        if k == 1:
+            c[0] = second_first_close
+        if truncate_first and k == 0:
+            times, c = times[:5], c[:5]                  # the session stops at 14:30: no close
+        idx_all += times
+        close += list(c)
+    idx = pd.DatetimeIndex(idx_all, tz="America/New_York")
+    close = np.asarray(close)
+    return pd.DataFrame({"Open": np.r_[close[0], close[:-1]], "High": close + 0.2,
+                         "Low": close - 0.2, "Close": close, "Volume": 1e6}, index=idx)
+
+
+def _dividend_adjusted_daily(factor=0.90, end="2024-03-04"):
+    """Daily bars the way auto-adjust serves them: every price scaled down by a dividend factor."""
+    daily = _frame(_uptrend())
+    scale = 100.0 * factor / daily["Close"].iloc[-1]
+    daily[["Open", "High", "Low", "Close"]] *= scale
+    daily.index = pd.bdate_range(end=end, periods=N)
+    return daily
+
+
+@pytest.mark.unit
+def test_intraday_rules_take_the_previous_close_from_the_intraday_frame_not_the_daily_one():
+    # intraday last close of day 1 is 100 (as traded); the ADJUSTED daily close is ~90.
+    # Day 2's first hour closes at 99.8: below 100 = a down move, but "above" 90 if the daily
+    # close were used. H1b follows that first hour, so its side shows which one was used.
+    df = _two_sessions_60m()
+    daily = _dividend_adjusted_daily()
+    assert daily["Close"].iloc[-1] == pytest.approx(90.0)
+    feats = {"AAA": daily_features(daily)}
+    spec = StrategySpec("H1b", "H1b", "day", "60m", "x", "x", {})
+    rows = dt.run_intraday(spec, {"AAA": df}, feats)
+    assert [r["direction"] for r in rows] == [-1]
+    ctx = dt.day_context(feats["AAA"], pd.Timestamp("2024-03-05"), 100.0)
+    assert ctx["prev_close"] == 100.0
+    # ATR in price units is scaled to the intraday price level too (atr% x intraday close)
+    assert ctx["atr"] == pytest.approx(ctx["atr_pct"] * 100.0)
+
+
+@pytest.mark.unit
+def test_a_session_without_a_usable_previous_intraday_session_is_skipped():
+    spec = StrategySpec("H1b", "H1b", "day", "60m", "x", "x", {})
+    feats = {"AAA": daily_features(_dividend_adjusted_daily())}
+    # the previous session was cut short (last bar 14:30): its last print is not the close
+    assert dt.run_intraday(spec, {"AAA": _two_sessions_60m(truncate_first=True)}, feats) == []
+    # a day missing from the intraday frame: the previous intraday session is not the
+    # previous trading day of the daily frame
+    gap = _two_sessions_60m(days=("2024-03-01", "2024-03-05"))
+    assert dt.run_intraday(spec, {"AAA": gap}, feats) == []
+
+
+@pytest.mark.unit
+def test_an_early_close_session_counts_as_a_previous_session():
+    half = np.arange(570, 570 + 4 * 60, 60)                 # 09:30 ... 12:30, closes 13:00
+    assert dt.session_closed(half, "60m") and dt.session_closed(np.arange(570, 990, 60), "60m")
+    assert not dt.session_closed(np.arange(570, 570 + 5 * 60, 60), "60m")
+    assert dt.session_closed(np.arange(570, 570 + 78 * 5, 5), "5m")
+
+
+# ----------------------------------------------------------------------- M-4: mutation killers
+
+
+def _flat(n=N, level=100.0, wobble=0.004):
+    """A flat series hugging its SMA200, so one big last day flips the trend flag."""
+    return level * (1 + wobble * np.sin(np.arange(n) * 0.9))
+
+
+def _open_family_frames(prev_above=True):
+    """Two frames that differ ONLY in the entry day's own close/high/low/volume.
+
+    Before the entry day the stock closes just above (or below) its SMA200; a moderate gap
+    (against that trend) opens the entry day. In frame B the entry day's close then crosses
+    the SMA200 and its range is huge (the ATR changes): everything a rule that is "known at
+    the open" must not see.
+    """
+    close = _flat()
+    sma = close[-201:-1].mean()
+    close[-2] = close[-1] = sma * (1.004 if prev_above else 0.996)
+    gap = np.zeros(N)
+    gap[-1] = -0.008 if prev_above else 0.008
+    a = _frame(close, gap=gap)
+    b = a.copy()
+    i = len(b) - 1
+    b.iloc[i, b.columns.get_loc("Close")] = sma * (0.97 if prev_above else 1.03)
+    b.iloc[i, b.columns.get_loc("High")] = b["High"].iloc[i] * 1.06
+    b.iloc[i, b.columns.get_loc("Low")] = b["Low"].iloc[i] * 0.94
+    b.iloc[i, b.columns.get_loc("Volume")] *= 9
+    return a, b
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("prev_above", [True, False])
+def test_d1_uses_the_trend_known_before_the_open_not_the_entry_days_close(prev_above):
+    a, b = _open_family_frames(prev_above)
+    expected = 1 if prev_above else -1                       # fade a gap against the trend
+    assert _last("D1", a) == expected and _last("D1", b) == expected
+    fa, fb = daily_features(a), daily_features(b)
+    # the entry day's own close did flip the same-day flag; the *_prev flags did not move
+    assert bool(fb["up"].iloc[-1]) != bool(fa["up"].iloc[-1]) or bool(fb["down"].iloc[-1]) != bool(fa["down"].iloc[-1])
+    assert fa["up_prev"].iloc[-1] == fb["up_prev"].iloc[-1]
+
+
+@pytest.mark.unit
+def test_open_based_stop_uses_the_atr_known_before_the_entry_bar():
+    a, b = _open_family_frames(prev_above=True)
+    spec = StrategySpec("D1", "D1", "day", "1d", "x", "x", {"lo": 0.3, "hi": 1.5, "stop_atr": 1.0, "hold": 1})
+    for frame in (a, b):
+        feats = {"AAA": daily_features(frame)}
+        rows = dt.run_daily(spec, feats, lambda f, p: daily_signal("D1", f, p),
+                            first_day=frame.index[0])
+        row = [r for r in rows if r["entry_ts"] == frame.index[-1]][0]
+        f = feats["AAA"]
+        entry = frame["Open"].iloc[-1]
+        atr_prev = f["atr_prev"].iloc[-1]
+        assert row["direction"] == 1
+        if frame is b:
+            # the huge entry-day range hits the stop; it must sit exactly 1 ATR (as known
+            # BEFORE the entry day) below the fill, not 1 ATR of a range that includes the day
+            assert row["reason"] == "stop"
+            assert row["raw"] == pytest.approx(-atr_prev / entry)
+            assert f["atr"].iloc[-1] > 1.3 * atr_prev        # the same-day ATR is far larger
+
+
+@pytest.mark.unit
+def test_the_volume_average_excludes_the_signal_day():
+    # prior 20 days average 1.0e6; today 1.52e6 -> ratio 1.52 >= 1.5 only if today is NOT
+    # in the average (including it gives 20 * 1.52 / 20.52 = 1.481 < 1.5)
+    close = _uptrend(wobble=0.0)
+    close[-1] = close[-2] * 1.03
+    vol = np.full(N, 1e6)
+    vol[-1] = 1.52e6
+    df = _frame(close, vol=vol)
+    feats = daily_features(df)
+    assert feats["vol_ratio"].iloc[-1] == pytest.approx(1.52)
+    assert _last("S3", df) == 1
+    # and a past day's average never contains that day either
+    assert feats["vol_ratio"].iloc[-30] == pytest.approx(1.0)
+
+
+def _tiny_run(signal_idx, hold=5, n=40):
+    close = 100 * np.exp(np.cumsum(np.full(n, 0.001)))
+    df = _frame(close)
+    df.index = pd.bdate_range("2024-01-01", periods=n)
+    sig = pd.Series(0, index=df.index)
+    sig.iloc[list(signal_idx)] = 1
+    spec = StrategySpec("T", "S1", "swing", "1d", "x", "x", {"hold": hold})
+    feats = {"AAA": daily_features(df)}
+    # atr is NaN in the first 14 bars; stay beyond that
+    return dt.run_daily(spec, feats, lambda f, p: sig, first_day=df.index[0]), df
+
+
+@pytest.mark.unit
+def test_a_symbol_in_a_trade_ignores_new_signals_until_it_is_out():
+    # signals on bars 20, 21, 22 and 24: the first enters at 21 and holds 5 bars (to 25);
+    # the others would enter at 22, 23, 25 inside that trade. No pyramiding.
+    rows, df = _tiny_run([20, 21, 22, 24])
+    assert len(rows) == 1
+    assert rows[0]["entry_ts"] == df.index[21] and rows[0]["exit_ts"] == df.index[25]
+    # a signal on the exit bar (25) fills at 26, after the position is out -> a second trade
+    rows, df = _tiny_run([20, 25])
+    assert [r["entry_ts"] for r in rows] == [df.index[21], df.index[26]]
+
+
+@pytest.mark.unit
+def test_s1_leaves_a_long_above_and_a_short_below_the_five_day_average():
+    f = pd.DataFrame({"close": [10.0, 12.0, 8.0, 10.0], "sma5": [10.0, 10.0, 10.0, 10.0]})
+    assert swing.exit_flags_s1(f, 1).tolist() == [False, True, False, False]
+    assert swing.exit_flags_s1(f, -1).tolist() == [False, False, True, False]
+
+
+@pytest.mark.unit
+def test_run_daily_closes_s1_shorts_at_the_first_close_below_the_average():
+    n = 60
+    close = 100 * np.exp(np.cumsum(np.full(n, -0.001)))
+    close[40:44] = close[39] * np.array([1.02, 1.03, 1.02, 0.97])   # bounce, then a drop
+    df = _frame(close)
+    df.index = pd.bdate_range("2024-01-01", periods=n)
+    feats = {"AAA": daily_features(df)}
+    sig = pd.Series(0, index=df.index)
+    sig.iloc[40] = -1
+    spec = StrategySpec("T", "S1", "swing", "1d", "x", "x", {"hold": 15})
+    rows = dt.run_daily(spec, feats, lambda f, p: sig, first_day=df.index[0],
+                        exit_flags=swing.EXIT_FLAGS["S1"])
+    f = feats["AAA"]
+    first_below = next(i for i in range(41, n) if f["close"].iloc[i] < f["sma5"].iloc[i])
+    assert rows[0]["reason"] == "signal" and rows[0]["exit_ts"] == df.index[first_below]

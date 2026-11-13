@@ -148,11 +148,20 @@ def run_daily(spec: StrategySpec, feats: dict[str, pd.DataFrame],
                                  last_idx=last_idx, cost_bps=cost, stop=stop,
                                  exit_on_close=flags)
             busy_until = res.exit_idx
+            # the position's P&L day by day (entry day: open -> close; later days:
+            # close -> close; the exit day of a stop/target/signal ends at the exit price)
+            path_ret = []
+            for j in range(entry_idx, res.exit_idx + 1):
+                start = res.entry_price if j == entry_idx else c[j - 1]
+                end = res.exit_price if j == res.exit_idx else c[j]
+                path_ret.append(float(end / start - 1.0))
             out.append({
                 "symbol": symbol, "date": dates[entry_idx].normalize(),
                 "entry_ts": dates[entry_idx], "exit_ts": dates[res.exit_idx],
                 "direction": direction, "raw": res.exit_price / res.entry_price - 1.0,
                 "window": c[res.exit_idx] / res.entry_price - 1.0, "reason": res.exit_reason,
+                "path_days": [d.normalize() for d in dates[entry_idx:res.exit_idx + 1]],
+                "path_ret": path_ret,
             })
     return out
 
@@ -261,7 +270,13 @@ def setup_m2b(o, h, low, c, v, mins, ctx, p) -> Setup | None:
 
 
 def setup_m3(o, h, low, c, v, mins, ctx, p) -> Setup | None:
-    """VWAP reversion (5m): 2 sigma away from session VWAP, with the daily trend, back to VWAP."""
+    """VWAP reversion (5m): 2 sigma away from session VWAP, with the daily trend, back to VWAP.
+
+    Exit rules as implemented: target = the session VWAP at the signal bar; stop = 1 sigma
+    from the FILL price, against the position (sigma = std of close minus VWAP so far).
+    The plan said "1 sigma beyond the 2 sigma trigger" (about 3 sigma from the VWAP);
+    what was implemented, and measured, is 1 sigma from the fill.
+    """
     tp = (h + low + c) / 3.0
     cum_v = np.cumsum(v)
     vwap = np.cumsum(tp * v) / np.where(cum_v > 0, cum_v, np.nan)
@@ -303,34 +318,67 @@ def full_session(mins: np.ndarray, interval: str) -> bool:
     return len(mins) == len(full) and bool((mins == full).all())
 
 
-def day_context(f: pd.DataFrame, day: pd.Timestamp) -> dict | None:
-    """What the daily bars say before ``day`` opens (the previous trading day's values)."""
+def day_context(f: pd.DataFrame, day: pd.Timestamp, prev_close: float) -> dict | None:
+    """What is known before ``day`` opens: the previous session's intraday close plus the
+    previous trading day's daily-bar values (trend flags, volatility).
+
+    ``prev_close`` MUST come from the intraday frame itself (the last bar of the
+    previous session): Yahoo's daily bars are dividend-adjusted while its intraday bars
+    are not, so a daily close compared with an intraday price is wrong by up to the
+    dividends paid since (about 12 % at the start of the 60-minute window).
+    Everything taken from the daily frame is a RATIO (ATR %, price vs SMA200), which
+    adjustment leaves alone; the ATR in price units is therefore ``atr_pct * prev_close``,
+    in the intraday price scale.
+    """
     pos = f.index.searchsorted(day) - 1
-    if pos < 0:
+    if pos < 0 or not (np.isfinite(prev_close) and prev_close > 0):
         return None
     row = f.iloc[pos]
     if not (np.isfinite(row["atr"]) and np.isfinite(row["close"]) and row["close"] > 0):
         return None
-    return {"prev_close": float(row["close"]), "atr": float(row["atr"]),
-            "atr_pct": float(row["atr_pct"]), "up": bool(row["up"]), "down": bool(row["down"])}
+    atr_pct = float(row["atr_pct"])
+    return {"prev_close": float(prev_close), "atr": atr_pct * float(prev_close),
+            "atr_pct": atr_pct, "up": bool(row["up"]), "down": bool(row["down"]),
+            "prev_daily_date": f.index[pos].normalize()}
 
 
-def session_days(df: pd.DataFrame, interval: str):
-    """Yield ``(date, slice)`` for each complete session of an intraday frame."""
+# start minute of the last bar of a session that ended at the close (full day, early close)
+_CLOSING_STARTS = {"60m": (930, 750), "5m": (955, 775)}
+
+
+def session_closed(mins: np.ndarray, interval: str) -> bool:
+    """True when the session's last bar is the one that ends at the close (4:00 or 1:00 pm)."""
+    return len(mins) > 0 and int(mins[-1]) in _CLOSING_STARTS[interval]
+
+
+def all_sessions(df: pd.DataFrame):
+    """Yield ``(date, slice)`` for every session of an intraday frame, complete or not."""
     dates = pd.DatetimeIndex(df.index.tz_localize(None)).normalize()
     day_ints = dates.asi8
-    mins_all = minutes_of_day(df.index)
     bounds = np.flatnonzero(np.diff(day_ints)) + 1
     starts = np.r_[0, bounds]
     ends = np.r_[bounds, len(df)]
     for s, e in zip(starts, ends, strict=True):
-        if full_session(mins_all[s:e], interval):
-            yield dates[s], slice(s, e)
+        yield dates[s], slice(s, e)
+
+
+def session_days(df: pd.DataFrame, interval: str):
+    """Yield ``(date, slice)`` for each complete session of an intraday frame."""
+    mins_all = minutes_of_day(df.index)
+    for day, sl in all_sessions(df):
+        if full_session(mins_all[sl], interval):
+            yield day, sl
 
 
 def run_intraday(spec: StrategySpec, intraday: dict[str, pd.DataFrame],
                  feats: dict[str, pd.DataFrame], *, cost_bps: float | None = None) -> list[dict]:
-    """Simulate an intraday strategy on every complete session of every symbol."""
+    """Simulate an intraday strategy on every complete session of every symbol.
+
+    The previous close every rule compares with is the last bar of the previous
+    INTRADAY session (same source, same adjustment as the bars traded); a session
+    whose previous session is missing, was cut short, or is not the previous trading
+    day of the daily frame is skipped.
+    """
     setup_fn = INTRADAY_SETUPS[spec.family]
     cost = COSTS_BPS[spec.horizon] if cost_bps is None else cost_bps
     interval = spec.timeframe
@@ -342,9 +390,17 @@ def run_intraday(spec: StrategySpec, intraday: dict[str, pd.DataFrame],
         o, h, lo, c, v = (df[k].to_numpy(dtype=float)
                           for k in ("Open", "High", "Low", "Close", "Volume"))
         mins_all = minutes_of_day(df.index)
-        for day, sl in session_days(df, interval):
-            ctx = day_context(f, day)
-            if ctx is None:
+        prev_day, prev_close = None, float("nan")
+        for day, sl in all_sessions(df):
+            session_mins = mins_all[sl]
+            seen_day, seen_close = prev_day, prev_close
+            prev_day = day
+            prev_close = float(c[sl][-1]) if session_closed(session_mins, interval) \
+                else float("nan")
+            if not full_session(session_mins, interval) or seen_day is None:
+                continue
+            ctx = day_context(f, day, seen_close)
+            if ctx is None or ctx.pop("prev_daily_date") != seen_day:
                 continue
             args = (o[sl], h[sl], lo[sl], c[sl], v[sl], mins_all[sl])
             setup = setup_fn(*args, ctx, spec.params)

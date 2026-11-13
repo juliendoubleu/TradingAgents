@@ -18,6 +18,7 @@ import pandas as pd
 from tradingagents.dataflows.errors import VendorUnavailableError
 from tradingagents.dataflows.symbols import normalize_symbol
 from tradingagents.dataflows.vendors.yahoo.bulk import load_bulk_ohlcv
+from tradingagents.scanner.horizons import IdeaSet, build_ideas
 from tradingagents.scanner.notices import Notice
 from tradingagents.scanner.regime import MarketRegime, breadth_above_sma200, compute_regime
 from tradingagents.scanner.session import drop_unsettled
@@ -52,6 +53,9 @@ class ScanResult:
     top: int = 10
     generated: str = ""
     custom: bool = False                  # a --tickers list replaced the universe's members
+    # Ideas per investment horizon with their evidence label.  ``longs``/``shorts`` above stay
+    # for compatibility and are the composite's "technical picture", which has no measured edge.
+    ideas: IdeaSet | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -68,6 +72,7 @@ class ScanResult:
             "warnings_de": [w.text("de") for w in self.warnings],
             "warning_items": [{"code": w.code, "params": w.params} for w in self.warnings],
             "running_bars_removed": self.running_bars_removed,
+            "ideas": None if self.ideas is None else self.ideas.to_dict(),
         }
 
 
@@ -209,11 +214,16 @@ def run_scan(
                    key=lambda s: (-s.score, s.symbol))[:top]
     shorts = sorted((s for s in signals if s.direction == "Short"),
                     key=lambda s: (s.score, s.symbol))[:top]
+    try:
+        ideas = build_ideas(info, frames, signals, regime, top=top)
+    except Exception:   # the idea layer must never take the scan down
+        logger.exception("building the horizon ideas failed")
+        ideas = None
     return ScanResult(
         universe=universe.strip().lower(), description=description, benchmark=benchmark,
         requested_date=as_of_date, as_of_date=as_of, regime=regime,
         signals=sorted(signals, key=lambda s: -s.score), longs=longs, shorts=shorts,
         skipped=sorted(skipped), warnings=warnings, top=top,
         generated=datetime.now().strftime("%Y-%m-%d %H:%M"), custom=bool(tickers),
-        running_bars_removed=running,
+        running_bars_removed=running, ideas=ideas,
     )
