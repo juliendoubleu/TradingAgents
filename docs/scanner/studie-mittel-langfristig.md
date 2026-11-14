@@ -260,7 +260,7 @@ Für jede Zelle, die belegt oder schwach belegt ist, und zur Information auch f�
 | US-Aktien, T1, lang (6 Monate), Long | NVDA, AVGO, AMD | 374 bp / t 2,0 (Newey-West 3,0) | 215 bp / t 1,4 (Newey-West 1,8) | IS 0,7, OOS 1,2 | belegt (frühere Regel) | nicht belegt |
 | US-Aktien, V1, lang (6 Monate), Long | NVDA, AVGO, AMD | 661 bp / t 2,4 (Newey-West 3,2) | 336 bp / t 1,6 (Newey-West 2,0) | IS 0,9, OOS 1,1 | belegt (frühere Regel) | nicht belegt |
 
-Die Zellen mit dem Vermerk "frühere Regel" waren schon an der korrigierten Statistik gescheitert (getrenntes t im In-Sample- bzw. Out-of-Sample-Teil unter der Schwelle). Das einfache gepoolte t ohne sie (Spalte "Gepoolt ohne sie": 1,4, 1,6) liegt unter der Schwelle von 2,0; die Zahlen stehen so in der Tabelle. Ohne die drei Aktien bleibt im Auswahlzeitraum kaum ein Vorsprung (Spalte "t ohne sie").
+Die Zellen mit dem Vermerk "frühere Regel" waren schon an der korrigierten Statistik gescheitert (getrenntes t im In-Sample- bzw. Out-of-Sample-Teil unter der Schwelle). Das einfache gepoolte t ohne sie (Spalte "Gepoolt ohne sie": 1,4 und 1,6) liegt unter der Schwelle von 2,0; die Zahlen stehen so in der Tabelle. Ohne die drei Aktien bleibt im Auswahlzeitraum kaum ein Vorsprung (Spalte "t ohne sie").
 
 ## Stop-Modus (warum die Ideen keinen Stop tragen)
 
@@ -417,7 +417,7 @@ Alle Schwellen sind vor dem Lauf festgelegt und wurden nicht angepasst:
 - **Das Newey-West-t ist optimistisch** und wird nur zur Information mitgeführt; beurteilt wird mit dem Median des einfachen t der nicht überlappenden Termine über alle Phasen. Dieses beruht auf wenigen Beobachtungen (beim Halbjahr etwa 7 bis 8 im Testabschnitt) und ist entsprechend unscharf.
 - **Der größte Rückgang** der Risikosicht wird auf täglichen Kursen innerhalb der Haltefenster gemessen, die Rendite und der Sharpe-Wert aber an den Periodenenden; Tage zwischen zwei Haltefenstern (Bargeld) sind nicht abgebildet.
 - **Survivorship-Bias**: Es werden die heutigen Mitglieder der Listen rückwirkend getestet. Firmen, die zwischenzeitlich schwach waren, ausschieden oder pleitegingen, fehlen. Das begünstigt Long-Regeln und lässt Short-Ergebnisse eher zu schlecht aussehen (die Verlierer fehlen).
-- **Keine Leihgebühren und Dividendenkosten** bei Shorts; reale Shorts sind teurer und teils nicht möglich, das lässt Short-Ergebnisse eher zu gut aussehen, also in die entgegengesetzte Richtung wie der Survivorship-Bias. Kostenannahmen sind pauschal (10 bp bzw. 30 bp je Hin- und Rückweg), ohne Abwägung von Spreads in schwachen Märkten oder Steuern.
+- **Keine Leihgebühren und Dividendenkosten** bei Shorts; reale Shorts sind teurer und teils nicht möglich, das lässt Short-Ergebnisse eher zu gut aussehen, also entgegengesetzt zum Survivorship-Bias. Kostenannahmen sind pauschal (10 bp bzw. 30 bp je Hin- und Rückweg), ohne Abwägung von Spreads in schwachen Märkten oder Steuern.
 - **Eine einzige Out-of-Sample-Periode** (die letzten 30 % der Termine): sie ist ein einzelnes Marktumfeld. Ein Bestehen belegt nicht, dass die Regel in anderen Umfeldern funktioniert, ein Durchfallen nicht, dass sie nie funktionieren kann.
 - **Gleichgewichtete Körbe** ohne Rücksicht auf Liquidität und Positionsgrößen; die Rendite eines echten Depots mit wenigen Positionen streut deutlich stärker.
 - Kurse sind rückwirkend um Dividenden und Splits bereinigt (Yahoo), Krypto-Daten reichen je nach Coin nur wenige Jahre zurück.

@@ -547,7 +547,7 @@ def scan(
     if save:
         for result, validation, deep_result in saved:
             paths = save_scan(result, validation, deep_result, lang,
-                              output or DEFAULT_CONFIG["results_dir"], horizons)
+                              output or DEFAULT_CONFIG["results_dir"], horizons, tz=tz)
             if not digest:
                 console.print(f"\n{_c('saved', lang)} {paths['md']}\n       {paths['html']}\n"
                               f"       {paths['json']}\n       {paths['digest']}", soft_wrap=True)

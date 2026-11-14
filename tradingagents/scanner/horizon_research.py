@@ -984,10 +984,21 @@ def _f(x, nd=1) -> str:
     return fmt_num(x, nd, "de")
 
 
+def _join_values(values: list[str], lang: str = "de") -> str:
+    """List numbers so that decimal commas stay readable: "1,4 und 1,6", "1,4; 1,6 und 1,8"
+    (English: "1.4 and 1.6", "1.4, 1.6 and 1.8")."""
+    word, sep = ("und", "; ") if lang == "de" else ("and", ", ")
+    if len(values) <= 1:
+        return "".join(values)
+    if len(values) == 2:
+        return f"{values[0]} {word} {values[1]}"
+    return f"{sep.join(values[:-1])} {word} {values[-1]}"
+
+
 def _info_only_note(info: list[dict], min_t: float) -> str:
     """The sentence under the robustness table about cells that had failed on the corrected
     statistic already; built from the plain pooled t without the removed names, never fixed text."""
-    ts = ", ".join(_f(r["robustness"]["pooled_t"]) for r in info)
+    ts = _join_values([_f(r["robustness"]["pooled_t"]) for r in info])
     below = sum(1 for r in info if r["robustness"]["pooled_t"] < min_t)
     where = ("liegt unter" if below == len(info) else
              "bleibt oberhalb" if below == 0 else "liegt teils unter, teils oberhalb")
@@ -1467,8 +1478,7 @@ def write_report(snapshot: dict, path: str | Path, before: dict | None = None) -
         "fehlen. Das begünstigt Long-Regeln und lässt Short-Ergebnisse eher zu schlecht "
         "aussehen (die Verlierer fehlen).",
         "**Keine Leihgebühren und Dividendenkosten** bei Shorts; reale Shorts sind teurer und "
-        "teils nicht möglich, das lässt Short-Ergebnisse eher zu gut aussehen, also in die "
-        "entgegengesetzte Richtung wie der Survivorship-Bias. Kostenannahmen sind pauschal (10 bp bzw. 30 bp je Hin- und Rückweg), "
+        "teils nicht möglich, das lässt Short-Ergebnisse eher zu gut aussehen, also entgegengesetzt zum Survivorship-Bias. Kostenannahmen sind pauschal (10 bp bzw. 30 bp je Hin- und Rückweg), "
         "ohne Abwägung von Spreads in schwachen Märkten oder Steuern.",
         "**Eine einzige Out-of-Sample-Periode** (die letzten 30 % der Termine): sie ist ein "
         "einzelnes Marktumfeld. Ein Bestehen belegt nicht, dass die Regel in anderen Umfeldern "

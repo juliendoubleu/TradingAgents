@@ -517,7 +517,10 @@ def test_the_robustness_note_follows_the_actual_pooled_t():
     def cell(t):
         return {"robustness": {"pooled_t": t}}
     below = hr._info_only_note([cell(1.4), cell(1.6)], 2.0)
-    assert "1,4, 1,6" in below and "liegt unter der Schwelle von 2,0" in below
+    assert "1,4 und 1,6" in below and "liegt unter der Schwelle von 2,0" in below
     above = hr._info_only_note([cell(2.3)], 2.0)
     assert "bleibt oberhalb der Schwelle von 2,0" in above and "2,3" in above
     assert "teils unter, teils oberhalb" in hr._info_only_note([cell(1.4), cell(2.3)], 2.0)
+    assert "1,4; 1,6 und 1,8" in hr._info_only_note([cell(1.4), cell(1.6), cell(1.8)], 2.0)
+    assert hr._join_values(["1,4", "1,6", "1,8"], "en") == "1,4, 1,6 and 1,8"
+    assert hr._join_values(["1.4", "1.6"], "en") == "1.4 and 1.6"

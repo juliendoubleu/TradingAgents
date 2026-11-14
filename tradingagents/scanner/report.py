@@ -1027,10 +1027,12 @@ def save_scan(
     lang: str = "en",
     results_dir: str | Path = ".",
     horizons: Iterable[str] | None = None,
+    tz: str | None = None,
 ) -> dict[str, Path]:
     """Write ``scan.md``, ``scan.html``, ``scan.json`` and ``digest.txt`` under
-    ``<results_dir>/scans/<name>/``. The JSON carries the ideas with their evidence."""
-    from tradingagents.scanner.digest import build_digest  # digest imports this module
+    ``<results_dir>/scans/<name>/``. The JSON carries the ideas with their evidence; the digest's
+    clock is shown in the IANA zone ``tz`` (default: the digest's, Europe/Berlin)."""
+    from tradingagents.scanner.digest import DEFAULT_TZ, build_digest  # digest imports this module
 
     lang = _norm_lang(lang)
     folder = scan_directory(result, results_dir)
@@ -1049,6 +1051,6 @@ def save_scan(
     paths["html"].write_text(render_html(result, validation, deep, lang, horizons),
                              encoding="utf-8")
     paths["json"].write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
-    digest = build_digest([result], lang, horizons=horizons)
+    digest = build_digest([result], lang, horizons=horizons, tz=tz or DEFAULT_TZ)
     paths["digest"].write_text(digest.text + "\n", encoding="utf-8")
     return paths

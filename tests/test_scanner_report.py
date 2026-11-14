@@ -266,6 +266,17 @@ def test_html_is_self_contained_escaped_badged_and_themed(validation):
 
 
 @pytest.mark.unit
+def test_save_scan_digest_uses_the_requested_time_zone(tmp_path):
+    result = evidenced_result()
+    ny = rp.save_scan(result, None, None, "de", tmp_path / "ny", tz="America/New_York")
+    default = rp.save_scan(result, None, None, "de", tmp_path / "de")
+    first_ny = ny["digest"].read_text(encoding="utf-8").split("\n")[2]
+    first_de = default["digest"].read_text(encoding="utf-8").split("\n")[2]
+    assert ("EST" in first_ny or "EDT" in first_ny) and "MEZ" not in first_ny and "MESZ" not in first_ny
+    assert ("MEZ" in first_de or "MESZ" in first_de) and "EST" not in first_de
+
+
+@pytest.mark.unit
 def test_save_scan_writes_four_files_and_the_json_carries_the_ideas(validation, tmp_path):
     result = evidenced_result()
     paths = rp.save_scan(result, validation, None, "de", tmp_path)
