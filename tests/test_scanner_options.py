@@ -1,7 +1,8 @@
 """Implied moves from at-the-money straddles, with yfinance mocked."""
 
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from types import SimpleNamespace
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import pytest
@@ -10,6 +11,10 @@ from tradingagents.dataflows.errors import VendorUnavailableError
 from tradingagents.dataflows.vendors.yahoo import options as opt
 
 TODAY = date.today()
+# New York noon of TODAY: the session is running, so an expiry dated today is still alive
+_NOW = datetime.combine(TODAY, time(12, 0), tzinfo=ZoneInfo("America/New_York")).astimezone(UTC)
+_AFTER_CLOSE = datetime.combine(TODAY, time(16, 30), tzinfo=ZoneInfo("America/New_York")
+                                ).astimezone(UTC)
 
 
 def _iso(days):
@@ -52,7 +57,7 @@ def test_nearest_common_strike_and_mid_prices(patch_ticker):
     calls = [(90, 11, 12, 11.4), (100, 4.0, 4.4, 4.1), (105, 2, 2.2, 2.1)]
     puts = [(100, 3.6, 4.0, 3.9), (105, 7, 7.4, 7.2)]  # no 90 put
     patch_ticker(FakeTicker([e], {e: (calls, puts)}, spot=101.0))
-    (m,) = opt.load_implied_moves("TTWO")
+    (m,) = opt.load_implied_moves("TTWO", now=_NOW)
     assert m.strike == 100.0  # 101 is nearest to 100 among strikes in both
     assert m.call_price == pytest.approx(4.2) and m.put_price == pytest.approx(3.8)
     assert m.straddle == pytest.approx(8.0)
@@ -68,7 +73,7 @@ def test_zero_bid_ask_falls_back_to_last_and_is_stale(patch_ticker):
     calls = [(100, 0, 0, 4.0)]
     puts = [(100, 0, 0, 3.0)]
     patch_ticker(FakeTicker([e], {e: (calls, puts)}))
-    (m,) = opt.load_implied_moves("TTWO")
+    (m,) = opt.load_implied_moves("TTWO", now=_NOW)
     assert m.straddle == 7.0 and m.price_basis == "last" and m.stale is True
 
 
@@ -76,7 +81,7 @@ def test_zero_bid_ask_falls_back_to_last_and_is_stale(patch_ticker):
 def test_mixed_basis_is_flagged(patch_ticker):
     e = _iso(3)
     patch_ticker(FakeTicker([e], {e: ([(100, 4, 4.2, 4.1)], [(100, 0, 0, 3.0)])}))
-    (m,) = opt.load_implied_moves("TTWO")
+    (m,) = opt.load_implied_moves("TTWO", now=_NOW)
     assert m.price_basis == "mixed" and m.stale is True
     assert m.straddle == pytest.approx(4.1 + 3.0)
 
@@ -89,7 +94,7 @@ def test_expiry_with_an_unusable_leg_is_skipped(patch_ticker):
         good: ([(100, 4, 4.2, 4.1)], [(100, 3, 3.2, 3.1)]),
     }
     patch_ticker(FakeTicker([bad, good], chains))
-    moves = opt.load_implied_moves("TTWO")
+    moves = opt.load_implied_moves("TTWO", now=_NOW)
     assert [m.expiry for m in moves] == [good]
 
 
@@ -98,9 +103,34 @@ def test_past_expiries_and_max_expiries(patch_ticker):
     exps = [_iso(-3), _iso(0), _iso(5), _iso(12), _iso(19)]
     one = ([(100, 4, 4.2, 4.1)], [(100, 3, 3.2, 3.1)])
     patch_ticker(FakeTicker(exps, dict.fromkeys(exps, one)))
-    moves = opt.load_implied_moves("TTWO", max_expiries=2)
+    moves = opt.load_implied_moves("TTWO", max_expiries=2, now=_NOW)
     assert [m.expiry for m in moves] == [_iso(0), _iso(5)]
-    assert moves[0].days_to_expiry == 0
+    assert moves[0].days_to_expiry == 0 and moves[0].expires_today is True    # marked, not hidden
+    assert moves[1].expires_today is False
+
+
+@pytest.mark.unit
+def test_an_expiry_dated_today_is_dropped_after_the_close(patch_ticker):
+    exps = [_iso(0), _iso(5), _iso(12)]
+    one = ([(100, 4, 4.2, 4.1)], [(100, 3, 3.2, 3.1)])
+    patch_ticker(FakeTicker(exps, dict.fromkeys(exps, one)))
+    moves = opt.load_implied_moves("TTWO", max_expiries=2, now=_AFTER_CLOSE)
+    assert [m.expiry for m in moves] == [_iso(5), _iso(12)]       # today's session is over
+    assert not any(m.expires_today for m in moves)
+
+
+@pytest.mark.unit
+def test_an_unknown_symbol_is_an_error_but_a_symbol_without_options_is_not(patch_ticker):
+    from tradingagents.dataflows.errors import NoMarketDataError
+
+    unknown = FakeTicker([], {})
+    unknown.fast_info = {}
+    unknown.history = lambda **kw: pd.DataFrame()
+    patch_ticker(unknown)
+    with pytest.raises(NoMarketDataError):
+        opt.load_implied_moves("XXXXQQ", now=_NOW)
+    patch_ticker(FakeTicker([], {}))                               # a real symbol, no options
+    assert opt.load_implied_moves("SAP.DE", now=_NOW) == []
 
 
 @pytest.mark.unit
@@ -109,7 +139,7 @@ def test_placeholder_iv_is_dropped(patch_ticker):
     calls = [(100, 4, 4.2, 4.1, 0, 0.00001)]
     puts = [(100, 3, 3.2, 3.1, 5, 0.42)]
     patch_ticker(FakeTicker([e], {e: (calls, puts)}))
-    (m,) = opt.load_implied_moves("TTWO")
+    (m,) = opt.load_implied_moves("TTWO", now=_NOW)
     assert m.call_iv is None and m.put_iv == 0.42
     assert m.call_open_interest == 0 and m.put_open_interest == 5
 
@@ -117,7 +147,7 @@ def test_placeholder_iv_is_dropped(patch_ticker):
 @pytest.mark.unit
 def test_no_listed_options_is_an_empty_answer(patch_ticker):
     patch_ticker(FakeTicker([], {}))
-    assert opt.load_implied_moves("SAP.DE") == []
+    assert opt.load_implied_moves("SAP.DE", now=_NOW) == []
 
 
 @pytest.mark.unit
@@ -129,7 +159,7 @@ def test_vendor_failure_is_reported_as_unavailable(monkeypatch, patch_ticker):
 
     patch_ticker(Boom())
     with pytest.raises(VendorUnavailableError):
-        opt.load_implied_moves("TTWO")
+        opt.load_implied_moves("TTWO", now=_NOW)
 
 
 @pytest.mark.unit
@@ -138,7 +168,7 @@ def test_spot_falls_back_to_history(patch_ticker):
     t = FakeTicker([e], {e: ([(100, 4, 4.2, 4.1)], [(100, 3, 3.2, 3.1)])})
     t.fast_info = {}
     patch_ticker(t)
-    (m,) = opt.load_implied_moves("TTWO")
+    (m,) = opt.load_implied_moves("TTWO", now=_NOW)
     assert m.spot == 101.0
 
 
@@ -146,6 +176,6 @@ def test_spot_falls_back_to_history(patch_ticker):
 def test_to_dict_roundtrips(patch_ticker):
     e = _iso(3)
     patch_ticker(FakeTicker([e], {e: ([(100, 4, 4.2, 4.1)], [(100, 3, 3.2, 3.1)])}))
-    (m,) = opt.load_implied_moves("TTWO")
+    (m,) = opt.load_implied_moves("TTWO", now=_NOW)
     d = m.to_dict()
     assert d["symbol"] == "TTWO" and d["stale"] is False

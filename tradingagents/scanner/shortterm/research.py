@@ -411,7 +411,7 @@ def _assessment(study: Study) -> list[str]:
             "also aus der Marktdrift (ein steigender Aktienmarkt, plus Survivorship-Bias der "
             "heutigen Large Caps), nicht aus einem Können der Regel: kein gemessener Vorteil. "
             "Wer Long-Aktien hält, verdient dasselbe, ohne die Regel zu brauchen. Deshalb heißt "
-            f"{i} im Bericht und in den Daten „beta“ und erzeugt standardmäßig keine Ideen.")
+            f"{i} „nur Marktrendite“: keine Empfehlung, nur ein gekennzeichneter Beobachtungspunkt.")
     out.append(
         f"{len(is_hits)} Variante(n) erreichten im Lernzeitraum (IS) einen t-Wert von mindestens 2 "
         f"({', '.join(is_hits) or 'keine'}). Bei {n} Versuchen sind einzelne t-Werte um 2 allein "
@@ -734,17 +734,20 @@ def write_report(study: Study, path: str | Path, before: dict | None = None) -> 
                  "nächsten Eröffnung, Stop, Haltedauer). Sie bleiben Simulationsergebnisse mit "
                  "Unsicherheit, keine Anlageberatung.")
     else:
-        L.append("Da keine Strategie belegt ist (Abschnitt 6), erzeugt die tägliche Liste "
-                 "standardmäßig **keine** Kurzfrist-Ideen. „Kein Vorteil gefunden“ ist ein gültiges "
-                 "Ergebnis; Anlagehorizonte der übrigen Empfehlungen bleiben die der Analyse.")
+        L.append("Da keine Strategie belegt ist (Abschnitt 6), gibt es **keine** Kurzfrist-"
+                 "Empfehlung. Die tägliche Liste zeigt die Regeln nur als technisches Bild mit "
+                 "ihrem Etikett (Beobachtungsliste, nie als Empfehlung). „Kein Vorteil gefunden“ "
+                 "ist ein gültiges Ergebnis; Anlagehorizonte der übrigen Empfehlungen bleiben die "
+                 "der Analyse.")
     if experimental:
         L.append("Experimentelle Strategien (" + ", ".join(experimental) + ") "
                  "können auf Wunsch gesondert als „experimentell“ markiert angezeigt werden.")
     if beta:
         L.append("Formal bestandene Strategien ohne Vorteil gegenüber der Marktdrift (" + ", ".join(beta)
-                 + ", Etikett „beta“) erzeugen **keine** Ideen. Nur auf ausdrückliche Anfrage "
-                 "(`include_beta=True`) werden sie angezeigt, mit dem Pflichthinweis: „verdient nur, "
-                 "was der Markt in denselben Tagen ohnehin brachte; kein belegter Vorteil“.")
+                 + ", Etikett „nur Marktrendite“) sind **keine** Empfehlung. Das Programm zeigt sie "
+                 "nur als gekennzeichneten Beobachtungspunkt mit dem "
+                 "Pflichthinweis: „verdient nur, was der Markt in denselben Tagen ohnehin brachte; "
+                 "kein belegter Vorteil“.")
 
     L.append("\n## 9. Korrekturen nach der unabhängigen Prüfung")
     L.append(
@@ -773,6 +776,20 @@ def write_report(study: Study, path: str | Path, before: dict | None = None) -> 
     return out
 
 
+def study_from_snapshot(snap: dict) -> Study:
+    """Rebuild a ``Study`` from a written ``validated.json`` so the report can be regenerated
+    without running the study again."""
+    by_id = {sp.id: sp for sp in all_specs()}
+    rows = [r for r in snap["strategies"] if r["id"] in by_id]
+    results = {r["id"]: {k: r.get(k) for k in (
+        "verdict", "strong", "beats_drift", "label", "IS", "OOS", "ALL", "cost_sensitivity",
+        "baselines")} for r in rows}
+    return Study(
+        as_of=snap["study_date"], specs=[by_id[r["id"]] for r in rows], results=results,
+        variants_tried=snap.get("variants_tried", 0), data_windows=snap["data"],
+        splits=snap["splits"], drift=snap.get("drift_reference") or {}, include_oos=True)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m tradingagents.scanner.shortterm.research",
@@ -785,8 +802,19 @@ def main(argv: list[str] | None = None) -> int:
                              "before/after table (default: <out>/validated_before_review.json)")
     parser.add_argument("--update-package", action="store_true",
                         help="also overwrite the packaged validated.json that live.py reads")
+    parser.add_argument("--report-only", action="store_true",
+                        help="regenerate the report from <out>/validated.json without running "
+                             "the study (nothing is downloaded or measured)")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO)
+    if args.report_only:
+        out = Path(args.out)
+        snap = json.loads((out / SNAPSHOT_NAME).read_text(encoding="utf-8"))
+        before_path = Path(args.before) if args.before else out / "validated_before_review.json"
+        before = json.loads(before_path.read_text(encoding="utf-8")) if before_path.exists() else None
+        report = write_report(study_from_snapshot(snap), out / "BERICHT_Kurzfrist.md", before=before)
+        print(f"report: {report}")
+        return 0
     as_of = args.as_of or str(
         (pd.Timestamp.now(tz="America/New_York").normalize() - pd.Timedelta(days=1)).date())
     study = run_study(as_of, args.cache, include_oos=True)

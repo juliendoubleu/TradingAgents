@@ -19,7 +19,7 @@ from datetime import date, datetime, timedelta
 import pandas as pd
 
 from tradingagents.dataflows.errors import NoMarketDataError
-from tradingagents.scanner import indicators as ind
+from tradingagents.scanner import indicators as ind, session
 from tradingagents.scanner.fmt import fmt_date, fmt_pct, fmt_points, fmt_price
 
 # Offsets in the instrument's own trading bars, relative to the event bar (index 0).
@@ -243,12 +243,26 @@ def event_study(symbol, events, benchmark="^GSPC", as_of_date=None, loader=None)
 
 # --------------------------------------------------------------------------- snapshot
 
-def performance_snapshot(symbols, as_of_date=None, loader=None) -> list[Snapshot]:
-    """Where each instrument stands: last close, 5/21/63/126/252-bar returns, distance to
-    the 252-bar high/low, ATR14 as % of the close.
+# bars per 1 week / 1 / 3 / 6 / 12 months and in a year: stocks trade 252 days, crypto 365
+_BARS_STOCK = (5, 21, 63, 126, 252)
+_BARS_CRYPTO = (7, 30, 91, 182, 365)
 
-    Anything needing more bars than exist is None; a symbol without data comes back with
-    ``error`` set instead of being dropped.
+
+def calendar_bars(symbol: str) -> tuple[int, int, int, int, int]:
+    """The bar counts of the 1-week/1/3/6/12-month windows of ``symbol`` (crypto trades every
+    day of the year, so its windows are longer in bars)."""
+    return _BARS_CRYPTO if _norm(symbol).endswith("-USD") else _BARS_STOCK
+
+
+def performance_snapshot(symbols, as_of_date=None, loader=None, now=None) -> list[Snapshot]:
+    """Where each instrument stands: last close, the 1-week/1/3/6/12-month returns, distance
+    to the 12-month high/low, ATR14 as % of the close.
+
+    The windows are counted in bars of the instrument's own calendar (stocks 5/21/63/126/252,
+    crypto 7/30/91/182/365).  A bar whose session is not over yet at ``now`` (default: the
+    current time, see ``session``) is dropped, like in the scan.  Anything needing more bars
+    than exist is None; a symbol without data comes back with ``error`` set instead of being
+    dropped.  The ``ret_5 ... ret_252`` fields hold the five windows in that order.
     """
     as_of = _as_of(as_of_date)
     loader = loader or _default_loader
@@ -261,18 +275,20 @@ def performance_snapshot(symbols, as_of_date=None, loader=None) -> list[Snapshot
             out.append(Snapshot(symbol=sym, error="no price data"))
             continue
         frame = frame[frame.index <= as_of].dropna(subset=["Close"])
-        if frame.empty:
+        frame = session.settled({sym: frame}, now).get(sym) if not frame.empty else frame
+        if frame is None or frame.empty:
             out.append(Snapshot(symbol=sym, error="no price data"))
             continue
         close = frame["Close"]
         last = float(close.iloc[-1])
+        bars = calendar_bars(sym)
 
         def ret(k, close=close):
             return float(close.iloc[-1] / close.iloc[-1 - k] - 1.0) if len(close) > k else None
 
         dist_high = dist_low = None
-        if len(close) >= ind.TRADING_DAYS:
-            tail = close.iloc[-ind.TRADING_DAYS:]
+        if len(close) >= bars[4]:
+            tail = close.iloc[-bars[4]:]
             dist_high = last / float(tail.max()) - 1.0
             dist_low = last / float(tail.min()) - 1.0
         atr_pct = None
@@ -282,7 +298,8 @@ def performance_snapshot(symbols, as_of_date=None, loader=None) -> list[Snapshot
                 atr_pct = float(atr) / last
         out.append(Snapshot(
             symbol=sym, last_close=last, last_date=_iso(close.index[-1]),
-            ret_5=ret(5), ret_21=ret(21), ret_63=ret(63), ret_126=ret(126), ret_252=ret(252),
+            ret_5=ret(bars[0]), ret_21=ret(bars[1]), ret_63=ret(bars[2]), ret_126=ret(bars[3]),
+            ret_252=ret(bars[4]),
             dist_high_252=dist_high, dist_low_252=dist_low, atr14_pct=atr_pct,
         ))
     return out
@@ -303,13 +320,15 @@ _T = {
               "after_10": "+10d", "after_20": "+20d", "after_60": "+60d"},
         "snap": "Snapshot", "symbol": "Symbol", "close": "Close", "high": "to high",
         "low": "to low", "atr": "ATR14", "err": "no data",
-        "snap_note": "Returns over 5/21/63/126/252 trading bars; high/low = 252-bar range.",
+        "snap_note": "Returns over about 1 week / 1 / 3 / 6 / 12 months (crypto: 7/30/91/182/365 "
+                     "daily bars, stocks: 5/21/63/126/252); high/low = 12-month range.",
         "imp": "Implied move", "expiry": "Expiry", "days": "Days", "strike": "Strike",
         "straddle": "Straddle", "move": "Move", "basis": "Basis",
         "imp_note": ("The price of the at-the-money straddle (call + put) roughly equals the "
                      "absolute move the market prices in until expiry."),
         "stale_note": ("Some quotes are last-trade prices (no live bid/ask), possibly hours "
                        "old and not simultaneous."),
+        "expires_today": "expires today",
         "none": "No listed options.", "mid": "mid", "last": "last", "mixed": "mixed",
     },
     "de": {
@@ -325,13 +344,15 @@ _T = {
               "after_10": "+10T", "after_20": "+20T", "after_60": "+60T"},
         "snap": "Momentaufnahme", "symbol": "Symbol", "close": "Schluss", "high": "zum Hoch",
         "low": "zum Tief", "atr": "ATR14", "err": "keine Daten",
-        "snap_note": ("Renditen über 5/21/63/126/252 Handelstage; Hoch/Tief = 252-Tage-Spanne."),
+        "snap_note": ("Renditen über etwa 1 Woche / 1 / 3 / 6 / 12 Monate (Krypto: 7/30/91/182/365 "
+                      "Tageskurse, Aktien: 5/21/63/126/252); Hoch/Tief = 12-Monats-Spanne."),
         "imp": "Implizite Bewegung", "expiry": "Verfall", "days": "Tage", "strike": "Strike",
         "straddle": "Straddle", "move": "Bewegung", "basis": "Basis",
         "imp_note": ("Der Preis des At-the-money-Straddles (Call + Put) entspricht etwa der "
                      "absoluten Bewegung, die der Markt bis zum Verfall einpreist."),
         "stale_note": ("Einige Kurse sind letzte Handelspreise (kein aktuelles Bid/Ask), "
                        "möglicherweise Stunden alt und nicht zeitgleich."),
+        "expires_today": "läuft heute aus",
         "none": "Keine gelisteten Optionen.", "mid": "Mitte", "last": "letzter", "mixed": "gemischt",
     },
 }
@@ -350,7 +371,7 @@ def _table(headers: list[str], rows: list[list[str]]) -> str:
 def render_event_study(study: EventStudy, lang: str = "en") -> str:
     """Compact Markdown: returns per event, excess per event, summary, caveats."""
     t = _tr(lang)
-    cols = ["runup_60", "runup_20", "event_day", "after_5", "after_20", "after_60"]
+    cols = ["runup_60", "runup_20", "event_day", "after_5", "after_10", "after_20", "after_60"]
     head = [t["event"]] + [t["w"][c] for c in cols]
     done = [e for e in study.events if not e.upcoming]
     up = [e for e in study.events if e.upcoming]
@@ -421,7 +442,9 @@ def render_implied_moves(moves, lang: str = "en") -> str:
     if not moves:
         return f"### {t['imp']}\n\n{t['none']}\n"
     head = [t["expiry"], t["days"], t["strike"], t["straddle"], t["move"], t["basis"]]
-    rows = [[fmt_date(m.expiry, lang), str(m.days_to_expiry), fmt_price(m.strike, lang),
+    rows = [[fmt_date(m.expiry, lang),
+             t["expires_today"] if m.expires_today else str(m.days_to_expiry),
+             fmt_price(m.strike, lang),
              fmt_price(m.straddle, lang), "±" + fmt_pct(m.move_pct, 1, False, lang),
              t[m.price_basis]] for m in moves]
     parts = [f"### {t['imp']}: {moves[0].symbol}",

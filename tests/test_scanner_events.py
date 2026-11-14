@@ -1,6 +1,7 @@
 """Event study, snapshot and renderers on constructed series with hand-computed returns."""
 
 import json
+from datetime import UTC, datetime
 
 import numpy as np
 import pandas as pd
@@ -17,6 +18,7 @@ from tradingagents.scanner.events import (
 )
 
 AS_OF = "2026-06-30"
+LATER = datetime(2028, 1, 1, tzinfo=UTC)        # every bar of the constructed frames is final
 
 
 def _frame(closes, start="2026-01-05", high_pad=1.0):
@@ -191,7 +193,7 @@ def test_german_rendering_has_no_english_headers():
 def test_snapshot_values():
     closes = 100 + np.arange(300.0)
     snaps = performance_snapshot(["AAA"], as_of_date="2027-12-31",
-                                 loader=_loader(AAA=_frame(closes)))
+                                 loader=_loader(AAA=_frame(closes)), now=LATER)
     s = snaps[0]
     last = 399.0
     assert s.last_close == last
@@ -205,10 +207,52 @@ def test_snapshot_values():
     assert s.error is None
 
 
+def _daily_frame(closes, start="2026-01-01"):
+    idx = pd.date_range(start, periods=len(closes), freq="D")           # crypto: every day
+    c = pd.Series(np.asarray(closes, dtype=float), index=idx)
+    return pd.DataFrame({"Open": c, "High": c + 1, "Low": c - 1, "Close": c, "Volume": 1.0})
+
+
+@pytest.mark.unit
+def test_crypto_snapshot_counts_calendar_days_not_stock_bars():
+    closes = 100 + np.arange(400.0)                       # 400 daily bars, 100 ... 499
+    frame = _daily_frame(closes)
+    snaps = performance_snapshot(["BTC-USD"], as_of_date="2027-12-31",
+                                 loader=_loader(**{"BTC-USD": frame}), now=LATER)
+    s = snaps[0]
+    last = 499.0
+    # week / month / 3 months / 6 months / year = 7 / 30 / 91 / 182 / 365 bars
+    assert s.ret_5 == pytest.approx(last / (last - 7) - 1)
+    assert s.ret_21 == pytest.approx(last / (last - 30) - 1)
+    assert s.ret_63 == pytest.approx(last / (last - 91) - 1)
+    assert s.ret_126 == pytest.approx(last / (last - 182) - 1)
+    assert s.ret_252 == pytest.approx(last / (last - 365) - 1)
+    assert s.dist_low_252 == pytest.approx(last / (last - 364) - 1)   # 365-bar window
+    stock = performance_snapshot(["AAA"], as_of_date="2027-12-31",
+                                 loader=_loader(AAA=_frame(closes)), now=LATER)[0]
+    assert stock.ret_21 == pytest.approx(last / (last - 21) - 1)       # stocks unchanged
+
+
+@pytest.mark.unit
+def test_snapshot_drops_a_bar_that_is_not_final_yet():
+    closes = 100 + np.arange(400.0)
+    frame = _daily_frame(closes, start="2025-10-01")                    # last bar: 2026-11-04
+    last_day = frame.index[-1]
+    morning = datetime(last_day.year, last_day.month, last_day.day, 12, 0, tzinfo=UTC)
+    loader = _loader(**{"BTC-USD": frame})
+    s = performance_snapshot(["BTC-USD"], as_of_date="2027-12-31", loader=loader, now=morning)[0]
+    assert s.last_date == frame.index[-2].strftime("%Y-%m-%d")           # the UTC day runs on
+    assert s.last_close == 498.0
+    after = datetime(last_day.year, last_day.month, last_day.day, 23, 30, tzinfo=UTC
+                     ) + pd.Timedelta(hours=1)
+    s2 = performance_snapshot(["BTC-USD"], as_of_date="2027-12-31", loader=loader, now=after)[0]
+    assert s2.last_date == last_day.strftime("%Y-%m-%d") and s2.last_close == 499.0
+
+
 @pytest.mark.unit
 def test_snapshot_short_history_and_missing_symbol():
     snaps = performance_snapshot(["AAA", "NOPE"], as_of_date="2027-12-31",
-                                 loader=_loader(AAA=_frame(100 + np.arange(30.0))))
+                                 loader=_loader(AAA=_frame(100 + np.arange(30.0))), now=LATER)
     a, nope = snaps
     assert a.ret_21 is not None and a.ret_63 is None and a.ret_252 is None
     assert a.dist_high_252 is None and a.dist_low_252 is None
@@ -219,7 +263,7 @@ def test_snapshot_short_history_and_missing_symbol():
 @pytest.mark.unit
 def test_snapshot_rendering_both_languages():
     snaps = performance_snapshot(["AAA", "NOPE"], as_of_date="2027-12-31",
-                                 loader=_loader(AAA=_frame(1000 + np.arange(300.0))))
+                                 loader=_loader(AAA=_frame(1000 + np.arange(300.0))), now=LATER)
     en, de = render_snapshot(snaps, "en"), render_snapshot(snaps, "de")
     assert "Snapshot" in en and "no data" in en and "1,299.00" in en
     assert "Momentaufnahme" in de and "keine Daten" in de and "1.299,00" in de

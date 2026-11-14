@@ -326,12 +326,41 @@ def test_series_stats_newey_west_lag_and_the_nonoverlapping_subsample():
     assert s["nw_t"] == pytest.approx(hr.nw_tstat(x, 4))
     assert s["nw_t"] != pytest.approx(hr.nw_tstat(x, 5))
     assert s["nw_t"] != pytest.approx(hr.nw_tstat(x, 0))
-    # the subsample ends at the LAST date and takes every 5th value back from it
+    # the old single phase (subsample ending at the LAST date) is kept for information
     sub = x[::-1][::5][::-1]
     assert list(sub) == [x[3], x[8], x[13]]
-    assert s["t_nonoverlap"] == pytest.approx(hr.plain_tstat(sub))
+    assert s["t_tail"] == pytest.approx(hr.plain_tstat(sub))
+    # the judged t is the MEDIAN over all five phases, and every phase's t is stored
+    phases = [hr.plain_tstat(x[o::5]) for o in range(5)]
+    assert s["phase_t"] == pytest.approx(phases, abs=1e-3)
+    assert s["t_nonoverlap"] == pytest.approx(float(np.median(phases)))
     assert s["n_nonoverlap"] == 3 and s["phases"] == 5
-    assert s["t_nonoverlap"] != pytest.approx(hr.plain_tstat(x[::5]))   # another phase
+    assert s["t_nonoverlap"] != pytest.approx(s["t_tail"])
+
+
+@pytest.mark.unit
+def test_the_verdict_judges_the_median_over_phases_and_reports_the_passing_phases():
+    # a series whose non-overlapping t depends on the phase: positive values sit on offsets 0
+    # and 5 of 6 only, so two phases look significant and the median phase does not
+    rng = np.random.default_rng(7)
+    base = rng.normal(0.0, 0.01, 60)
+    x = base.copy()
+    x[0::6] += 0.03
+    k = 6
+    phases = [hr.plain_tstat(x[o::k]) for o in range(k)]
+    assert max(phases) > 2.0 > np.median(phases)
+    s = hr.series_stats(x, 6, 1, boot=False)
+    assert s["t_nonoverlap"] == pytest.approx(float(np.median(phases)))
+    # the same series as IS and OOS: judged on the median it is not even experimental ...
+    series = {n: {"IS": s, "OOS": s, "ALL": s} for n in
+              ("long_excess", "long_abs", "short_pnl", "short_excess", "spread")}
+    two_x = dict.fromkeys(series, 100.0)
+    verdict = hr.judge_side("long", series, two_x)["verdict"]
+    assert verdict == "unproven"
+    # ... while single phases would have passed it: the snapshot lists them
+    pv = hr.phase_verdicts("long", series, two_x)
+    assert len(pv) == 6 and pv[0] in ("validated", "experimental")
+    assert sum(v in ("validated", "experimental") for v in pv) < 6
 
 
 @pytest.mark.unit

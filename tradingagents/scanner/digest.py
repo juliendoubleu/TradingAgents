@@ -15,6 +15,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from tradingagents.scanner.fmt import fmt_date, fmt_num, fmt_price
 from tradingagents.scanner.horizons import holding_text
@@ -61,15 +62,23 @@ _X = {
     "strong_now": ("currently technically strong", "aktuell technisch stark"),
     "foot_labels": (
         "Validated = passed an out-of-sample test; technical picture = prices only, no proven "
-        "edge. Sizes are per trade and do not add up.",
+        "edge.",
         "Belegt = in einem Test außerhalb der Stichprobe bestanden; Technisches Bild = nur "
-        "Kursbild, kein belegter Vorteil. Größen gelten je Trade und addieren sich nicht."),
+        "Kursbild, kein belegter Vorteil."),
+    "foot_sizes": ("Sizes are per trade and do not add up.",
+                   "Größen gelten je Trade und addieren sich nicht."),
+    "weekend": ("weekend - exchanges closed", "Wochenende – Börsen geschlossen"),
+    "tech_strong_np": ("technically strong (not proven)", "technisch stark (nicht belegt)"),
     "foot_advice": ("Not investment advice.", "Keine Anlageberatung."),
     "no_scan": ("No scan result", "Kein Scan-Ergebnis"),
     "none_proven": ("No evidenced recommendation", "Keine belegte Empfehlung"),
     "proven": ("Evidenced", "Belegt"),
     "watch_only": ("Watch only (not proven)", "Nur Beobachtung (nicht belegt)"),
 }
+
+# short market names for the headline (a push notification has no room for "US-Aktien")
+_SHORT_MARKET = {"us": "US", "dax": "DAX", "global": "Global", "crypto": ("Crypto", "Krypto"),
+                 "sectors": ("Sectors", "Sektoren")}
 
 
 def _x(key: str, lang: str):
@@ -212,11 +221,20 @@ def _market_lines(result: ScanResult, lang: str, max_per_side: int, watch: bool,
     return lines
 
 
+def _is_weekend(now: datetime) -> bool:
+    """Saturday or Sunday in Europe/Berlin (a naive ``now`` is taken as Berlin time)."""
+    if now.tzinfo is not None:
+        now = now.astimezone(ZoneInfo("Europe/Berlin"))
+    return now.weekday() >= 5
+
+
 def _title(results: list[ScanResult], lang: str, now: datetime, newest: str) -> str:
     """``Fr 13.11.2026 17:52 · Kurse bis 12.11.2026``; when the markets' newest bars differ
     (a closed exchange, a holiday) the range ``Kurse bis 11.11.2026–12.11.2026``."""
     weekday = _WEEKDAY[lang][now.weekday()]
     stamp = f"{weekday} {fmt_date(now.date(), lang)} {now.strftime('%H:%M')}"
+    if _is_weekend(now) and any(r.universe != "crypto" for r in results):
+        stamp += f" · {_x('weekend', lang)}"
     dates = sorted({r.as_of_date for r in results if r.as_of_date})
     if len(dates) > 1:
         stamp += (f" · {_x('title_prices', lang)} {fmt_date(dates[0], lang)}–"
@@ -226,6 +244,18 @@ def _title(results: list[ScanResult], lang: str, now: datetime, newest: str) -> 
     return stamp
 
 
+def _any_size(results: list[ScanResult], max_per_side: int, horizons) -> bool:
+    """True when at least one displayed idea carries a size (only then the footer explains it)."""
+    for result in results:
+        if result.ideas is None:
+            continue
+        for view in horizon_views(result, horizons):
+            for side in SIDES:
+                if any(i.size_pct is not None for i in view.side(side)[:max_per_side]):
+                    return True
+    return False
+
+
 def _body(results: list[ScanResult], lang: str, max_per_side: int, watch: bool, now: datetime,
           horizons) -> str:
     newest = max((r.as_of_date for r in results if r.as_of_date), default="")
@@ -233,7 +263,11 @@ def _body(results: list[ScanResult], lang: str, max_per_side: int, watch: bool, 
     for result in results:
         blocks.append("\n".join(_market_lines(result, lang, max_per_side, watch, newest,
                                               horizons)))
-    blocks.append(f"{_x('foot_labels', lang)} {_x('foot_advice', lang)}")
+    foot = [_x("foot_labels", lang)]
+    if _any_size(results, max_per_side, horizons):
+        foot.append(_x("foot_sizes", lang))
+    foot.append(_x("foot_advice", lang))
+    blocks.append(" ".join(foot))
     return "\n\n".join(blocks)
 
 
@@ -248,6 +282,23 @@ def _evidenced_groups(results: list[ScanResult], lang: str, horizons) -> list[tu
                     groups.append((f"{market_name(result, lang)} {horizon_label(view.key, lang)} "
                                    f"{side}", [i.symbol for i in ideas]))
     return groups
+
+
+def _short_market(result: ScanResult, lang: str) -> str:
+    if result.custom:
+        return market_name(result, lang)
+    name = _SHORT_MARKET.get(result.universe)
+    if name is None:
+        return result.universe.upper()
+    return name if isinstance(name, str) else name[1 if lang == "de" else 0]
+
+
+def _bare(symbol: str) -> str:
+    """A ticker without its Yahoo suffix (.DE, -USD) for the headline."""
+    for suffix in (".DE", "-USD"):
+        if symbol.endswith(suffix):
+            return symbol[: -len(suffix)]
+    return symbol
 
 
 def _headline(results: list[ScanResult], lang: str, horizons) -> str:
@@ -270,10 +321,10 @@ def _headline(results: list[ScanResult], lang: str, horizons) -> str:
                           + (f" (+{len(groups) - 1})" if len(groups) > 1 else ""))
     else:
         for limit in (2, 1):
-            watch = "; ".join(
-                f"{market_name(r, lang)} {', '.join(s.symbol for s in r.longs[:limit])}"
+            watch = " · ".join(
+                f"{_short_market(r, lang)} {', '.join(_bare(s.symbol) for s in r.longs[:limit])}"
                 for r in results if r.longs)
-            tail = f" · {_x('watch_only', lang)}: {watch}" if watch else ""
+            tail = f" · {_x('tech_strong_np', lang)}: {watch}" if watch else ""
             candidates.append(f"{_x('none_proven', lang)}{tail} · {regimes}")
             candidates.append(f"{_x('none_proven', lang)}{tail}")
         candidates.append(_x("none_proven", lang))

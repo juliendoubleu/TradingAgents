@@ -6,7 +6,10 @@ from cli.display import console
 from cli.models import AnalystType, AssetType
 from cli.prompts import filter_analysts_for_asset_type, parse_analysts
 from cli.run import run_analysis
-from cli.scanner_commands import register as register_scanner_commands
+from cli.scanner_commands import (
+    register as register_scanner_commands,
+    vendor_message as _vendor_message,
+)
 from tradingagents.backtest import iter_grid, run_backtest, summarize
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.portfolio import load_portfolio
@@ -165,6 +168,9 @@ _CLI = {
     "failed": ("{market} failed: {err}", "{market} fehlgeschlagen: {err}"),
     "failed_digest": ("Not loaded: {markets}.", "Nicht geladen: {markets}."),
     "all_failed": ("No market could be scanned.", "Kein Markt konnte gescannt werden."),
+    "digest_failed": ("Market scan failed: price data unavailable - no digest",
+                      "Markt-Scan fehlgeschlagen: Kursdaten nicht abrufbar – kein Digest"),
+    "unexpected": ("Unexpected error", "Unerwarteter Fehler"),
     "data_as_of": ("data as of", "Datenstand"),
     "regime": ("Market regime", "Marktregime"),
     "val_title": ("Walk-forward validation of the technical picture",
@@ -212,6 +218,7 @@ def _print_recommendations(result, lang: str, horizons) -> None:
     from tradingagents.scanner.horizons import holding_text
     from tradingagents.scanner.report import (
         SIDES,
+        any_size,
         composite_conflicts,
         conflict_text,
         general_notes,
@@ -268,7 +275,8 @@ def _print_recommendations(result, lang: str, horizons) -> None:
             why = [tr("no_rec", lang)]
         for line in why:
             console.print(f"  [yellow]{escape(line)}[/yellow]", soft_wrap=True)
-    console.print(f"\n[dim]{escape(sizing_note(lang))}[/dim]", soft_wrap=True)
+    if any_size(views):
+        console.print(f"\n[dim]{escape(sizing_note(lang))}[/dim]", soft_wrap=True)
 
 
 def _print_watch(result, lang: str, horizons) -> None:
@@ -276,7 +284,7 @@ def _print_watch(result, lang: str, horizons) -> None:
     from rich.markup import escape
 
     from tradingagents.scanner.fmt import fmt_num
-    from tradingagents.scanner.horizons import holding_text
+    from tradingagents.scanner.horizons import holding_text, watch_direction
     from tradingagents.scanner.report import _specific_watch, horizon_keys, tr
 
     keys = horizon_keys(horizons)
@@ -286,7 +294,7 @@ def _print_watch(result, lang: str, horizons) -> None:
     groups: dict[tuple, list[str]] = {}
     for idea in _specific_watch(result, keys):
         avoid = idea.stance == "avoid"
-        key = (idea.horizon, tr("avoid", lang) if avoid else idea.direction,
+        key = (idea.horizon, tr("avoid", lang) if avoid else watch_direction(idea.direction, lang),
                idea.evidence.text(lang))
         groups.setdefault(key, []).append(idea.symbol)
     for (horizon, side, sentence), symbols in groups.items():
@@ -427,7 +435,7 @@ def scan(
     names = [t.strip() for t in tickers.split(",") if t.strip()] if tickers else None
     wanted = list(dict.fromkeys(u.strip().lower() for u in universe.split(",") if u.strip()))
     try:
-        as_of = parse_date(date)
+        as_of = parse_date(date, lang=msg_lang)
         if tickers is not None and not names:
             raise ValueError(_c("err_no_ticker", msg_lang))
         if top < 1 or months < 1 or deep < 0:
@@ -468,10 +476,11 @@ def scan(
                     with console.status(_c("status_validate", lang, months=months)):
                         validation = run_validation(name, as_of, tickers=names, months=months)
         except VendorError as exc:
-            failures.append((name, _c("no_vendor", lang, err=exc)))
+            failures.append((name, _c("no_vendor", lang, err=_vendor_message(exc, lang))))
             continue
         except Exception as exc:  # one broken market must not stop the others
-            failures.append((name, f"{type(exc).__name__}: {exc}"))
+            failures.append((name, f"{_c('unexpected', lang)}: {type(exc).__name__}" if lang == "de"
+                             else f"{type(exc).__name__}: {exc}"))
             continue
         results.append((result, validation))
 
@@ -484,6 +493,9 @@ def scan(
     if not results:
         if len(wanted) > 1:
             typer.echo(_c("all_failed", lang), err=True)
+        if digest:
+            # a scheduled job pushes stdout: say in one line that there is no digest
+            typer.echo(_c("digest_failed", lang))
         raise typer.Exit(code=1)
 
     saved = []

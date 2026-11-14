@@ -26,8 +26,8 @@ from pathlib import Path
 from tradingagents.dataflows.symbols import safe_ticker_component
 from tradingagents.scanner.deep_dive import DeepDiveResult
 from tradingagents.scanner.fmt import fmt_date, fmt_num, fmt_pct, fmt_price
-from tradingagents.scanner.horizons import HORIZONS, Idea, IdeaSet, holding_text
-from tradingagents.scanner.notices import Notice
+from tradingagents.scanner.horizons import HORIZONS, Idea, IdeaSet, holding_text, watch_direction
+from tradingagents.scanner.notices import LABEL_NAMES, Notice
 from tradingagents.scanner.regime import LABELS as REGIME_LABELS, RISK_OFF_AT, RISK_ON_AT
 from tradingagents.scanner.scan import ScanResult
 from tradingagents.scanner.signals import (
@@ -48,14 +48,7 @@ HORIZON_ORDER = ("long", "medium", "swing", "day")
 LABEL_ORDER = ("validated", "experimental", "relative", "beta", "unproven", "not_studied")
 SIDES = ("Long", "Short")
 
-_LABEL = {
-    "validated": ("Validated", "Belegt"),
-    "experimental": ("Weakly supported", "Schwach belegt"),
-    "relative": ("Relatively weaker", "Relativ schwächer"),
-    "beta": ("Market return only", "Nur Marktrendite"),
-    "unproven": ("Not proven", "Nicht belegt"),
-    "not_studied": ("Not studied", "Nicht untersucht"),
-}
+_LABEL = LABEL_NAMES
 _LABEL_HELP = {
     "validated": ("passed the pre-registered out-of-sample test",
                   "hat den vorab festgelegten Test außerhalb der Stichprobe bestanden"),
@@ -103,10 +96,10 @@ _T = {
     "no_stop": ("no stop", "kein Stop"),
     "size": ("Size (max.)", "Größe (max.)"), "holding": ("Holding period", "Haltedauer"),
     "evidence": ("Evidence", "Beleg"),
-    "tech_weak_now": ("Technically weak right now: the scanner's technical picture says Short.",
-                      "Technisch aktuell schwach: das technische Bild des Scanners sagt Short."),
-    "tech_strong_now": ("Technically strong right now: the scanner's technical picture says Long.",
-                        "Technisch aktuell stark: das technische Bild des Scanners sagt Long."),
+    "tech_weak_now": ("Technically weak right now: the scanner's technical picture is weak.",
+                      "Technisch aktuell schwach: das technische Bild des Scanners ist schwach."),
+    "tech_strong_now": ("Technically strong right now: the scanner's technical picture is strong.",
+                        "Technisch aktuell stark: das technische Bild des Scanners ist stark."),
     "sizing": (
         "Sizes are per trade and do NOT add up: several ideas together can exceed 100 % of "
         "your capital, so cap the total exposure yourself. The medium- and long-term rules "
@@ -164,12 +157,12 @@ _T = {
         "Short-Ideen sind nirgends belegt: für keinen Short-Call gibt es einen gemessenen "
         "Vorteil."),
     "solid_short_term": (
-        "Day-trade and swing rules were tested ({n} rules) and none passed after costs.",
-        "Daytrade- und Swing-Regeln wurden getestet ({n} Regeln), keine bestand nach Kosten."),
+        "Tested: {n}; none passed after costs.",
+        "Getestet wurden {n}; keine bestand nach Kosten."),
     "solid_short_term_beta": (
-        "Day-trade and swing rules were tested ({n} rules); the only one that passed earns no "
+        "Tested: {n}; the only one that passed earns no "
         "more than the market itself (market return).",
-        "Daytrade- und Swing-Regeln wurden getestet ({n} Regeln); die einzige, die bestand, "
+        "Getestet wurden {n}; die einzige, die bestand, "
         "verdient nicht mehr als der Markt selbst (Marktrendite)."),
     "solid_date": ("Study of {date}; it is a snapshot and does not update itself.",
                    "Studie vom {date}; sie ist eine Momentaufnahme und aktualisiert sich nicht "
@@ -363,6 +356,12 @@ def sizing_note(lang: str = "en") -> str:
                                      cap=fmt_num(MAX_POSITION_PCT, 0, lang))
 
 
+def any_size(views: Iterable[HorizonView]) -> bool:
+    """True when at least one displayed idea carries a size: only then is the sizing
+    explanation shown."""
+    return any(i.size_pct is not None for v in views for i in v.recs)
+
+
 def short_reason(note: Notice, lang: str = "en") -> str:
     """A note reduced to a clause for one-liners; the full sentence is ``note.text(lang)``."""
     template = _SHORT_WHY.get(note.code)
@@ -515,13 +514,29 @@ def solid_paragraph(result: ScanResult, lang: str, horizons: Iterable[str] | Non
     short_notes = [c["note"] for c in cells if c["horizon"] in ("day", "swing") and c["note"]
                    and c["note"].code in ("idea_no_rec_short_term", "idea_beta_only")]
     if short_notes:
-        n = max(int(x.params.get("n", 0) or 0) for x in short_notes)
+        per = {}
+        for c in cells:
+            if c["horizon"] in ("day", "swing") and c["note"] and c["note"] in short_notes:
+                per[c["horizon"]] = max(per.get(c["horizon"], 0),
+                                        int(c["note"].params.get("n", 0) or 0))
+        n = _rule_counts(per, lang)
         beta = any(x.code == "idea_beta_only" for x in short_notes)
         parts.append(_t("solid_short_term_beta" if beta else "solid_short_term", lang).format(n=n))
     if result.ideas.study_date:
         parts.append(_t("solid_date", lang).format(date=fmt_date(result.ideas.study_date, lang)))
     parts.extend(general_notes(result, lang))
     return " ".join(parts)
+
+
+def _rule_counts(per: dict, lang: str) -> str:
+    """'9 Swing- und 15 Daytrade-Regeln (24)' from the per-horizon rule counts."""
+    sw, dy = int(per.get("swing", 0)), int(per.get("day", 0))
+    if lang == "de":
+        parts = [f"{k} {w}" for k, w in ((sw, "Swing"), (dy, "Daytrade")) if k]
+        return (" und ".join(parts) + "-Regeln" if len(parts) == 1 else
+                f"{parts[0]}- und {parts[1]}-Regeln") + (f" ({sw + dy})" if len(parts) == 2 else "")
+    parts = [f"{k} {w}" for k, w in ((sw, "swing"), (dy, "day-trade")) if k]
+    return " and ".join(parts) + " rules" + (f" ({sw + dy})" if len(parts) == 2 else "")
 
 
 def validation_verdict(v: ValidationResult, lang: str = "en") -> str:
@@ -658,7 +673,7 @@ def _watch_table(ideas: list[Idea], lang: str) -> Block:
     for idea in ideas:
         avoid = idea.stance == "avoid"
         rows.append([
-            _t("avoid", lang) if avoid else idea.direction, idea.symbol,
+            _t("avoid", lang) if avoid else watch_direction(idea.direction, lang), idea.symbol,
             f"{fmt_price(idea.reference_price, lang)} ({fmt_date(idea.reference_date, lang)})",
             Cell(idea.evidence.text(lang), label_text(idea.evidence.label, lang),
                  idea.evidence.label)])
@@ -797,7 +812,8 @@ def _recommendation_blocks(result: ScanResult, keys: Sequence[str], lang: str) -
             why.append(_t("no_rec", lang))
         if why:
             blocks.append(("ul", why))
-    blocks.append(("p", sizing_note(lang)))
+    if any_size(views):
+        blocks.append(("p", sizing_note(lang)))
     return blocks
 
 

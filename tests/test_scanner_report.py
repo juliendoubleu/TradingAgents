@@ -170,14 +170,14 @@ def test_how_solid_table_and_computed_paragraph():
     assert "44" in section and "2022–2026" in section and "2.2" in section
     assert "Passed the out-of-sample test: Long term Long (Momentum 12-1)" in section
     assert "Short ideas are not evidenced anywhere" in section
-    assert "rules were tested (15 rules); the only one that passed earns no more than the market" in section
-    assert "tested (24 rules) and none passed after costs" in rp.render_markdown(
+    assert "Tested: 9 swing and 15 day-trade rules (24); the only one that passed earns no more than the market" in section
+    assert "Tested: 24 day-trade rules; none passed after costs" in rp.render_markdown(
         empty_result(), lang="en")
     for label in ("Validated", "Weakly supported", "Relatively weaker", "Market return only",
                   "Not proven", "Not studied"):
         assert label in section
     de = rp.render_markdown(result, lang="de")
-    for label in ("Belegt", "Schwach belegt", "Relativ schwächer", "Nur Marktrendite",
+    for label in ("Belegt", "Schwach belegt", "Nur relativ schwächer", "Nur Marktrendite",
                   "Nicht belegt", "Nicht untersucht"):
         assert label in de
     assert "Short-Ideen sind nirgends belegt" in de

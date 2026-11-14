@@ -30,7 +30,9 @@ open event question ("GTA VI kommt nächste Woche, ist am Markt etwas zu erwarte
 All of these are also listed in `tradingagents --help` (the same app as `python -m cli.main`).
 
 `ask` is deterministic (no LLM): it names the instruments it recognised and answers from the
-data. If it recognises none, it says so and points here; **open event questions are answered
+data. The studies measure only about 1 month (medium) and about 6 months (long); for another
+period (say 3 months) `ask` shows both and says that the asked period was not tested: repeat that
+gap in your answer. If it recognises none, it says so and points here; **open event questions are answered
 by you**, in this session: combine your own reasoning with the measured facts.
 
 For an event question:
@@ -48,12 +50,12 @@ sample sizes) -> **Einschätzung je Anlagehorizont** (Daytrade / Kurzfristig / M
 Langfristig, only the ones that matter) -> **Risiken und Unbekanntes**.
 
 ## Evidence labels (print `Evidence.text(lang)` verbatim, never upgrade a label)
-- `validated` (belegt): passed the out-of-sample test after costs (plain t of non-overlapping
+- `validated` (Belegt): passed the out-of-sample test after costs (median over all phases of the plain t of non-overlapping
   dates) and survives removing the three best-performing names.
-- `experimental` (schwach belegt): preliminary, may be chance.
-- `relative` (nur relativ belegt): lagged the average, but no demonstrable absolute fall.
-- `beta` (nur Markt-Beta): earns only what the market earned anyway.
-- `unproven` (nicht belegt): no measurable edge. `not_studied`: no measurement (a custom ticker
+- `experimental` (Schwach belegt): preliminary, may be chance.
+- `relative` (Nur relativ schwächer): lagged the average, but no demonstrable absolute fall.
+- `beta` (Nur Marktrendite): earns only what the market earned anyway.
+- `unproven` (Nicht belegt): no measurable edge. `not_studied` (Nicht untersucht): no measurement (a custom ticker
   list is `not_studied` unless it is essentially the whole named universe).
 Only `validated` / `experimental` ideas are recommendations; everything else is a **watch
 list / technical picture** and must never be worded as a recommendation. The composite score has
@@ -69,7 +71,12 @@ in `tradingagents/scanner/evidence.json` (medium/long; refresh with
 `python -m tradingagents.scanner.horizon_research --out DIR --cache DIR --update-package`) and
 `tradingagents/scanner/shortterm/validated.json` (day/swing; refresh with
 `python -m tradingagents.scanner.shortterm.research --out DIR --cache DIR --update-package`).
-Do not tune a rule to rescue a result: the measurement decides.
+Do not tune a rule to rescue a result: the measurement decides. The names above live in one
+place (`notices.LABEL_NAMES`); say them exactly so. The medium/long verdicts judge the median over
+all phases of the non-overlapping t (a fixed phase had decided some cells; the rule was fixed after
+an independent review showed it, the thresholds did not move): after the re-run 0 validated, 0
+weakly supported, 0 relatively weaker, 15 "Nur Marktrendite", 129 "Nicht belegt". Watch items are
+worded "technisch stark" / "technisch schwach", never as Long/Short calls.
 
 ## Rules for every answer
 - Never promise an outcome or a return; past measurements do not predict the future.
@@ -81,7 +88,9 @@ Do not tune a rule to rescue a result: the measurement decides.
 The digest is produced by `python -m cli.main scan --universe us,dax,global,crypto --digest --lang de --no-save`
 (one or several universes): it prints only the plain-text digest (headline of at most 180
 characters, blank line, body). A scheduled task's **final message must
-be that digest text unchanged**: no preamble, no rewriting, no extra commentary.
+be that digest text unchanged**: no preamble, no rewriting, no extra commentary. If the command
+exits non-zero (no market could be scanned) its stdout is one line ("Markt-Scan fehlgeschlagen:
+Kursdaten nicht abrufbar – kein Digest"): the final message is that one line, unchanged.
 
 ## Code map
 `scan.py` (scan), `universe.py` (universes, evidence family of a list), `horizons.py` (ideas +

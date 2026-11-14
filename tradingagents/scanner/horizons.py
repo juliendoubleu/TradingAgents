@@ -102,6 +102,20 @@ _TF = {"1d": {"en": "daily", "de": "Tages-"}, "60m": {"en": "60-minute", "de": "
        "5m": {"en": "5-minute", "de": "5-Minuten-"}}
 
 
+_WATCH_DIR = {"Long": {"en": "technically strong", "de": "technisch stark"},
+              "Short": {"en": "technically weak", "de": "technisch schwach"}}
+
+
+def watch_direction(direction: str, lang: str = "en") -> str:
+    """How a watch-list item names its side: never as a call (Long/Short) but as the
+    technical picture ("technisch stark" / "technisch schwach")."""
+    return _WATCH_DIR.get(direction, {"en": direction, "de": direction})["de" if lang == "de" else "en"]
+
+
+WATCH_LOSS_WARNING = {"en": "earlier signals of this kind lost money in the test",
+                      "de": "frühere Signale dieser Art verloren im Test deutlich"}
+
+
 def holding_text(horizon: str, family: str, lang: str = "en") -> str:
     h = HORIZONS[horizon]
     src = h.holding_crypto if family == "crypto" else h.holding
@@ -251,13 +265,13 @@ class Evidence:
     def _core(self, lang: str) -> str:
         de = lang == "de"
         if self.label == "not_studied":
-            return ("Nicht untersucht: für diesen Bereich liegt keine Messung vor."
+            return (f"{notices.label_name('not_studied', 'de')}: für diesen Bereich liegt keine Messung vor."
                     if de else "Not studied: there is no measurement for this area.")
         per = _PERIOD.get(self.horizon, {"en": "trade", "de": "Trade"})[lang]
         if self.oos_mean_bps is None or self.oos_t is None:
             tested = (f" ({self.n_rules_tested} Regeln geprüft)" if de else
                       f" ({self.n_rules_tested} rules tested)") if self.n_rules_tested else ""
-            return (f"Nicht belegt: im Test kein messbarer Vorteil{tested}." if de
+            return (f"{notices.label_name('unproven', 'de')}: im Test kein messbarer Vorteil{tested}." if de
                     else f"Not proven: no measurable edge in the test{tested}.")
         win = ""
         if self.window:
@@ -276,8 +290,8 @@ class Evidence:
         p = _s(pct, 2, lang)
         strong = (" (stark: gepoolt t ≥ 3)" if de else " (strong: pooled t >= 3)") if self.strong else ""
         if self.label in RECOMMENDED:
-            head = "Belegt" if self.label == "validated" else "Schwach belegt (experimentell)"
-            head_en = "Validated" if self.label == "validated" else "Weakly supported (experimental)"
+            head = notices.label_name(self.label, "de")
+            head_en = notices.label_name(self.label, "en")
             if self.judged == "short_pnl":
                 core_de = f"brachte ein Short-Korb {p} % pro {per}"
                 core_en = f"a short basket made {p} % per {per}"
@@ -292,10 +306,10 @@ class Evidence:
             return (f"{head}: {win} {core_de}, t = {t}{prelim_de}{strong}" if de
                     else f"{head_en}: {win} {core_en}, t = {t}{prelim_en}{strong}")
         if self.label == "relative":
-            return (f"Nur relativ belegt: {win} blieben diese Werte {p} % pro {per} hinter dem "
+            return (f"{notices.label_name('relative', 'de')}: {win} blieben diese Werte {p} % pro {per} hinter dem "
                     f"Durchschnitt zurück (t = {t}), fielen aber nicht belegbar absolut: eher "
                     "meiden oder untergewichten als shorten" if de else
-                    f"Relative evidence only: {win} these names lagged the average by {p} % per "
+                    f"{notices.label_name('relative', 'en')}: {win} these names lagged the average by {p} % per "
                     f"{per} (t = {t}) but did not demonstrably fall in absolute terms: avoid or "
                     "underweight rather than short")
         if self.label == "beta":
@@ -307,13 +321,13 @@ class Evidence:
                 f", but the edge over the average of all names was only "
                 f"{_s(self.excess_mean_bps / 100.0, 2, lang)} %"
                 + (f" (t = {_s(self.excess_t, 1, lang)})" if self.excess_t is not None else ""))
-            return (f"Nur Markt-Beta: {win} {p} % pro {per}{ex}: verdient nur, was der Markt "
+            return (f"{notices.label_name('beta', 'de')}: {win} {p} % pro {per}{ex}: verdient nur, was der Markt "
                     "ohnehin verdiente" if de else
-                    f"Market beta only: {win} {p} % per {per}{ex}: earns what the market "
+                    f"{notices.label_name('beta', 'en')}: {win} {p} % per {per}{ex}: earns what the market "
                     "earned anyway")
         # unproven
         if self.oos_t >= 2.0 and self.is_t is not None and self.is_t < 2.0:
-            return (f"Nicht belegt: {win} lag die Regel zwar {p} % pro {per} vor dem Durchschnitt "
+            return (f"{notices.label_name('unproven', 'de')}: {win} lag die Regel zwar {p} % pro {per} vor dem Durchschnitt "
                     f"(t = {t}), im Auswahlzeitraum zeigte sich aber kein Vorteil (t = "
                     f"{_s(self.is_t, 1, lang)}): nach der vorab festgelegten Regel nicht belegt"
                     if de else
@@ -321,14 +335,15 @@ class Evidence:
                     f"but showed no edge in the selection period (t = {_s(self.is_t, 1, lang)}): "
                     "not proven under the pre-registered rule")
         what = {"long_excess": ("Vorsprung vor dem Durchschnitt", "edge over the average"),
-                "short_pnl": ("Short-Ergebnis", "short result")}.get(
+                "short_pnl": ("Ergebnis einer Wette auf fallende Kurse", "result of a bet on falling prices")}.get(
             self.judged or "", ("Ergebnis", "result"))
         worse_de = "sogar im Minus, " if self.oos_t <= -2.0 else ""
         worse_en = "even negative, " if self.oos_t <= -2.0 else ""
-        return (f"Nicht belegt: {win} kein messbarer Vorteil ({worse_de}{what[0]} {p} % pro "
-                f"{per}, t = {t})" if de else
+        warn = (f"; {WATCH_LOSS_WARNING['de' if de else 'en']}" if self.oos_t <= -2.0 else "")
+        return (f"{notices.label_name('unproven', 'de')}: {win} kein messbarer Vorteil ({worse_de}{what[0]} {p} % pro "
+                f"{per}, t = {t}){warn}" if de else
                 f"Not proven: {win} no measurable edge ({worse_en}{what[1]} {p} % per {per}, "
-                f"t = {t})")
+                f"t = {t}){warn}")
 
     def to_dict(self) -> dict:
         def num(x, nd=4):
@@ -362,6 +377,13 @@ def _t_of(stats: dict) -> float | None:
     return stats.get("t_nonoverlap", stats.get("nw_t"))
 
 
+def _mean_of(stats: dict) -> float | None:
+    """The mean (bp) that belongs to the judged t: that of the non-overlapping subsample
+    (``mean_nonoverlap_bps``); the overlapping mean only for an older snapshot."""
+    m = stats.get("mean_nonoverlap_bps")
+    return m if m is not None else stats.get("mean_bps")
+
+
 def _evidence_from_entry(snap: dict, entry: dict, label: str | None = None) -> Evidence:
     judged = entry.get("judged")
     series = (entry.get("series") or {}).get(judged) or {}
@@ -386,11 +408,11 @@ def _evidence_from_entry(snap: dict, entry: dict, label: str | None = None) -> E
         label=label, strong=bool(entry.get("strong")), rule_id=entry["rule"],
         rule_name=_rule_name(snap, entry["rule"]), family=entry["family"],
         horizon=entry["horizon"], side=entry["side"], study_date=snap.get("study_date", ""),
-        judged=ev_series, oos_n=oos.get("n"), oos_mean_bps=oos.get("mean_bps"),
+        judged=ev_series, oos_n=oos.get("n_nonoverlap") or oos.get("n"), oos_mean_bps=_mean_of(oos),
         oos_t=_t_of(oos), oos_pos_share=oos.get("pos_share"),
         oos_ci_low_bps=oos.get("ci_low_bps"), oos_ci_high_bps=oos.get("ci_high_bps"),
         is_t=_t_of(is_), window=window,
-        excess_mean_bps=ex.get("mean_bps") if label == "beta" else None,
+        excess_mean_bps=_mean_of(ex) if label == "beta" else None,
         excess_t=_t_of(ex) if label == "beta" else None, oos_nw_t=oos.get("nw_t"),
         caveat=caveat, robust=entry.get("robust"), stop_oos_bps=stop_oos,
         stop_atr=(snap.get("stop_atr") or {}).get(entry["horizon"]),
@@ -868,13 +890,13 @@ def _flag_conflicts(ideas: list[Idea], signals: list[Signal]) -> None:
         weak = idea.direction == "Long"
         score = {"en": fmt_num(sig.score, 0, "en"), "de": fmt_num(sig.score, 0, "de")}
         idea.conflict = {
-            "en": (f"Technically weak right now: the scanner's technical picture says Short "
+            "en": (f"Technically weak right now: the scanner's technical picture is weak "
                    f"(score {score['en']})." if weak else
-                   f"Technically strong right now: the scanner's technical picture says Long "
+                   f"Technically strong right now: the scanner's technical picture is strong "
                    f"(score {score['en']})."),
-            "de": (f"Technisch aktuell schwach: das technische Bild des Scanners sagt Short "
+            "de": (f"Technisch aktuell schwach: das technische Bild des Scanners ist schwach "
                    f"(Score {score['de']})." if weak else
-                   f"Technisch aktuell stark: das technische Bild des Scanners sagt Long "
+                   f"Technisch aktuell stark: das technische Bild des Scanners ist stark "
                    f"(Score {score['de']}).")}
 
 

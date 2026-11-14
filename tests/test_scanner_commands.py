@@ -41,7 +41,7 @@ def no_network(monkeypatch):
     monkeypatch.setattr(A, "run_scan", fake_scan(
         [signal("NVDA", -18.0), signal("SAP.DE", 62.0)],
         [idea("SAP.DE", "long", label="validated", rule="T1")]))
-    monkeypatch.setattr(A, "performance_snapshot", lambda syms, d, loader=None: [])
+    monkeypatch.setattr(A, "performance_snapshot", lambda syms, d, loader=None, now=None: [])
 
 
 # --------------------------------------------------------------------------- assess
@@ -130,7 +130,7 @@ def test_ask_answers_a_question_about_instruments(runner, app):
 def test_ask_event_question_without_instrument_is_the_honest_fallback(runner, app):
     res = runner.invoke(app, ["ask", "Was bedeutet der GTA-Release für den Markt?", "--lang", "de"])
     assert res.exit_code == 0, res.output
-    assert "So kann ich das nicht beantworten" in res.output and "Claude-Chat-Sitzung" in res.output
+    assert "So kann ich das nicht beantworten" in res.output and "Stell diese Frage direkt im Claude-Chat" in res.output
 
 
 @pytest.mark.unit
@@ -165,7 +165,7 @@ def test_ask_loop_on_a_terminal_ends_on_empty_line_and_survives_an_error(runner,
         raise VendorUnavailableError("offline")
     monkeypatch.setattr(A, "run_scan", down)
     res = runner.invoke(app, ["ask", "--lang", "de"], input="Nvidia kaufen?\nexit\n")
-    assert res.exit_code == 0 and "Could not get price data: offline" in res.output
+    assert res.exit_code == 0 and "Kursdaten konnten nicht geladen werden" in res.output
 
 
 @pytest.mark.unit
@@ -221,7 +221,7 @@ def test_event_study_bad_dates(runner, app, bars, dates, message):
 @pytest.mark.unit
 def test_event_study_unknown_symbol_is_a_red_message(runner, app, bars):
     res = runner.invoke(app, ["event-study", "NOPE", "--dates", "2018-10-26"])
-    assert res.exit_code == 1 and "Could not get price data" in res.output
+    assert res.exit_code == 1 and "No price data found for NOPE" in res.output
     assert isinstance(res.exception, SystemExit)
 
 

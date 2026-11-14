@@ -34,8 +34,8 @@ from tradingagents.scanner import notices
 from tradingagents.scanner.aliases import display_name
 from tradingagents.scanner.events import Snapshot, performance_snapshot, render_implied_moves
 from tradingagents.scanner.fmt import fmt_date, fmt_num, fmt_pct, fmt_price
-from tradingagents.scanner.horizons import HORIZONS, Idea
-from tradingagents.scanner.notices import Notice
+from tradingagents.scanner.horizons import HORIZONS, Idea, watch_direction
+from tradingagents.scanner.notices import Notice, label_name
 from tradingagents.scanner.regime import LABELS as REGIME_LABELS
 from tradingagents.scanner.scan import parse_date, run_scan
 from tradingagents.scanner.signals import Signal
@@ -52,12 +52,6 @@ _ALL = 10_000
 # a reader choosing between names to hold, a name that is only a Short candidate is last.
 STATUS_ORDER = {"recommended": 0, "watch": 1, "none": 2, "weak": 3, "short_rec": 3}
 
-_LABEL_DE = {"validated": "belegt", "experimental": "schwach belegt",
-             "relative": "nur relativ belegt", "beta": "nur Markt-Beta",
-             "unproven": "nicht belegt", "not_studied": "nicht untersucht"}
-_LABEL_EN = {"validated": "validated", "experimental": "weakly supported",
-             "relative": "relative evidence only", "beta": "market beta only",
-             "unproven": "not proven", "not_studied": "not studied"}
 _FAMILY_LABEL = {"stocks_us": ("US-Aktien", "US stocks"), "stocks_dax": ("DAX-Aktien", "DAX stocks"),
                  "etfs": ("ETFs", "ETFs"), "crypto": ("Krypto", "crypto")}
 _UNIVERSE_FOR_FAMILY = {"stocks_us": "us", "stocks_dax": "dax", "crypto": "crypto"}
@@ -66,7 +60,7 @@ _SHOWN_WARNINGS = ("stale_data", "benchmark_missing", "vix_missing", "regime_inp
 
 
 def label_text(label: str, lang: str = "en") -> str:
-    return (_LABEL_DE if lang == "de" else _LABEL_EN).get(label, label)
+    return label_name(label, lang).lower()
 
 
 def _t(de: str, en: str, lang: str) -> str:
@@ -115,16 +109,17 @@ def _single_text(h: str, e: dict, lang: str) -> str:
                   f"{lab}: {name} has a Long recommendation ({label}){weak}.", lang)
     if status == "watch":
         return _t(f"{lab}: Für {name} gibt es keine belegte Empfehlung, nur einen "
-                  f"Beobachtungswert ({e['direction']}, {label}).",
+                  f"Beobachtungswert ({watch_direction(e['direction'], lang)}, {label}).",
                   f"{lab}: there is no evidenced recommendation for {name}, only a watch item "
-                  f"({e['direction']}, {label}).", lang)
+                  f"({watch_direction(e['direction'], lang)}, {label}).", lang)
     if status == "short_rec":
         return _t(f"{lab}: {name} ist ein Short-Kandidat mit Beleg ({label}).",
                   f"{lab}: {name} is a Short candidate with evidence ({label}).", lang)
     if status == "weak":
-        return _t(f"{lab}: {name} steht auf der Short-Beobachtungsliste ({label}); "
+        return _t(f"{lab}: {name} steht auf der Beobachtungsliste, technisch schwach ({label}); "
                   "keine Empfehlung.",
-                  f"{lab}: {name} is on the Short watch list ({label}); no recommendation.", lang)
+                  f"{lab}: {name} is on the watch list, technically weak ({label}); "
+                  "no recommendation.", lang)
     return _t(f"{lab}: Für {name} gibt es hier kein Signal.",
               f"{lab}: there is no signal for {name} here.", lang)
 
@@ -137,7 +132,9 @@ def _summary_text(p: dict, lang: str) -> str:
     rec = [e for e in ents if e["status"] == "recommended"]
     rest = [e for e in ents if e["status"] != "recommended"]
     n = len(ents)
-    tech = _tech_clause(ents, lang) if h in ("medium", "long") else ""
+    # no ranking for a horizon where a name has no idea ("Keine Idee für" in its own block)
+    tech = (_tech_clause([e for e in ents if e["status"] != "none"], lang)
+            if h in ("medium", "long") else "")
     adjective_de = "schwach belegte" if any(e["label"] == "experimental" for e in rec) else "belegte"
     adjective_en = "weakly supported" if any(e["label"] == "experimental" for e in rec) else "evidenced"
     if not rec:
@@ -161,6 +158,19 @@ def _summary_text(p: dict, lang: str) -> str:
         head += _t(f" ({_join(weak, lang)} technisch aktuell aber schwach)",
                    f" ({_join(weak, lang)} technically weak right now though)", lang)
     return f"{lab}: {head}{'; ' + tech if tech else ''}."
+
+
+def collapse_summary(items: list[Notice], lang: str) -> list[str]:
+    """One line per distinct statement: horizons that say the same thing are joined
+    ("Daytrade, Kurzfristig (Swing): Für keinen der 2 Werte gibt es ...")."""
+    groups: dict[str, list[str]] = {}
+    for item in items:
+        h = item.params["horizon"]
+        lab = HORIZONS[h].label[lang if lang in ("en", "de") else "en"]
+        text = item.text(lang)
+        body = text[len(lab) + 2:] if text.startswith(f"{lab}: ") else text
+        groups.setdefault(body, []).append(lab)
+    return [f"{', '.join(labels)}: {body}" for body, labels in groups.items()]
 
 
 notices.register({"assess_summary": {"en": lambda p: _summary_text(p, "en"),
@@ -393,7 +403,7 @@ def assess(
 
     valid = [s for s in asked if results[s].error is None]
     if valid:
-        snaps = {s.symbol: s for s in performance_snapshot(valid, as_of, loader)}
+        snaps = {s.symbol: s for s in performance_snapshot(valid, as_of, loader, now)}
         for symbol in valid:
             results[symbol].snapshot = snaps.get(symbol)
     if with_options:
@@ -459,8 +469,9 @@ def _horizon_lines(t: TickerAssessment, lang: str,
             status = _idea_status(idea)
             kind = {"recommended": _t("Empfehlung Long", "Recommendation Long", lang),
                     "short_rec": _t("Empfehlung Short", "Recommendation Short", lang),
-                    "watch": _t("nur Beobachtung, Long", "watch only, Long", lang),
-                    "weak": _t("nur Beobachtung, Short", "watch only, Short", lang)}[status]
+                    "watch": _t("nur Beobachtung, technisch stark", "watch only, technically strong", lang),
+                    "weak": _t("nur Beobachtung, technisch schwach",
+                               "watch only, technically weak", lang)}[status]
             rule = idea.rule_name.get(lang) or idea.rule_name.get("en") or idea.rule_id
             evidence = idea.evidence.text(lang)       # verbatim; only a full stop is appended
             line = (f"- **{lab}: {kind}** ({_t('Regel', 'rule', lang)} {rule}): {evidence}"
@@ -472,10 +483,10 @@ def _horizon_lines(t: TickerAssessment, lang: str,
                 if idea.conflict:
                     line += "\n  " + idea.conflict.get(lang, idea.conflict["en"])
                 elif view.conflict:
-                    line += "\n  " + _t("Aber: aktuell technisch schwach (Short im technischen "
-                                        "Bild), beides steht nebeneinander.",
-                                        "But: currently technically weak (Short in the technical "
-                                        "picture); both stand side by side.", lang)
+                    line += "\n  " + _t("Aber: aktuell technisch schwach, beides steht "
+                                        "nebeneinander.",
+                                        "But: currently technically weak, both stand side by "
+                                        "side.", lang)
             if idea.outside:
                 line += "\n  " + idea.outside.get(lang, idea.outside["en"])
             lines.append(line)
@@ -530,9 +541,9 @@ def _compact_block(t: TickerAssessment, lang: str, horizons: tuple[str, ...]) ->
     if s is not None:
         conv = {"High": _t("hoch", "high", lang), "Medium": _t("mittel", "medium", lang),
                 "Low": _t("niedrig", "low", lang)}.get(s.conviction, s.conviction)
-        out.append(_t(f"Technisches Bild (ohne gemessenen Vorteil): {s.direction}, Score "
+        out.append(_t(f"Technisches Bild (ohne gemessenen Vorteil): {watch_direction(s.direction, 'de')}, Score "
                       f"{_score(s.score, lang)}, Überzeugung {conv}.",
-                      f"Technical picture (no measured edge): {s.direction}, score "
+                      f"Technical picture (no measured edge): {watch_direction(s.direction, 'en')}, score "
                       f"{_score(s.score, lang)}, conviction {conv}.", lang))
     out.append("\n".join(_horizon_lines(t, lang, horizons)))
     return "\n".join(part for part in out if part)
@@ -556,7 +567,7 @@ def _ticker_block(t: TickerAssessment, lang: str,
                       "most as the group's study says, not for this very instrument._", lang))
     s = t.signal
     if s is not None:
-        direction = {"Long": "Long", "Short": "Short",
+        direction = {"Long": watch_direction("Long", lang), "Short": watch_direction("Short", lang),
                      "Neutral": _t("Neutral", "Neutral", lang)}.get(s.direction, s.direction)
         conv = {"High": _t("hoch", "high", lang), "Medium": _t("mittel", "medium", lang),
                 "Low": _t("niedrig", "low", lang)}.get(s.conviction, s.conviction)
@@ -593,11 +604,11 @@ def _regime_line(a: Assessment, lang: str) -> str:
 def legend(lang: str = "en") -> str:
     return _t(
         "Belegt = im Test nach Kosten ein messbarer Vorteil · Schwach belegt = vorläufig, kann "
-        "Zufall sein · Nur relativ belegt / Nur Markt-Beta = kein eigener Vorteil · Nicht belegt "
+        "Zufall sein · Nur relativ schwächer / Nur Marktrendite = kein eigener Vorteil · Nicht belegt "
         "= kein messbarer Vorteil · Nicht untersucht = keine Messung. Der Score ist ein "
         "technisches Bild, kein belegter Vorteil.",
         "Validated = a measurable edge after costs in the test · Weakly supported = "
-        "preliminary, may be chance · Relative evidence only / Market beta only = no edge of its "
+        "preliminary, may be chance · Relatively weaker only / Market return only = no edge of its "
         "own · Not proven = no measurable edge · Not studied = no measurement. The score is a "
         "technical picture, not an evidenced edge.", lang)
 
@@ -663,7 +674,7 @@ def render_assessment(assessment: Assessment, lang: str = "en") -> str:
     lang = lang if lang in ("en", "de") else "en"
     names = ", ".join(t.name for t in assessment.tickers)
     head = f"## {_t('Einschätzung', 'Assessment', lang)}: {names}"
-    summary = [f"- {s.text(lang)}" for s in assessment.summary_items]
+    summary = [f"- {line}" for line in collapse_summary(assessment.summary_items, lang)]
     parts = [head]
     if summary:
         parts.append(f"**{_t('Das Wichtigste', 'In short', lang)}**\n" + "\n".join(summary))

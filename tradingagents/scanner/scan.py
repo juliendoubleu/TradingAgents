@@ -18,6 +18,7 @@ import pandas as pd
 from tradingagents.dataflows.errors import VendorUnavailableError
 from tradingagents.dataflows.symbols import normalize_symbol
 from tradingagents.dataflows.vendors.yahoo.bulk import load_bulk_ohlcv
+from tradingagents.scanner.fmt import fmt_date
 from tradingagents.scanner.horizons import IdeaSet, build_ideas
 from tradingagents.scanner.notices import Notice
 from tradingagents.scanner.regime import MarketRegime, breadth_above_sma200, compute_regime
@@ -83,19 +84,26 @@ class ScanResult:
         }
 
 
-def parse_date(value: str | None, today: date | None = None) -> str:
-    """``YYYY-MM-DD`` for a scan date: today when empty; a bad or future date is a ValueError."""
+def parse_date(value: str | None, today: date | None = None, lang: str = "en") -> str:
+    """``YYYY-MM-DD`` for a scan date: today when empty; a bad or future date is a ValueError
+    (its message in ``lang``)."""
+    de = lang == "de"
     today = today or date.today()
     if not value:
         return today.strftime("%Y-%m-%d")
+    bad = (f"Das Datum muss im Format JJJJ-MM-TT angegeben werden, erhalten: {value!r}" if de
+           else f"the date must be in YYYY-MM-DD format, got {value!r}")
     try:
         parsed = datetime.strptime(str(value), "%Y-%m-%d").date()
     except ValueError:
-        raise ValueError(f"the date must be in YYYY-MM-DD format, got {value!r}") from None
+        raise ValueError(bad) from None
     if parsed.strftime("%Y-%m-%d") != str(value):
-        raise ValueError(f"the date must be in YYYY-MM-DD format, got {value!r}")
+        raise ValueError(bad)
     if parsed > today:
-        raise ValueError(f"{value} is in the future; the scan needs prices that already exist")
+        raise ValueError(
+            f"{fmt_date(str(value), 'de')} liegt in der Zukunft; der Scan braucht Kurse, die es "
+            "schon gibt" if de else
+            f"{value} is in the future; the scan needs prices that already exist")
     return str(value)
 
 
@@ -136,10 +144,19 @@ def analyse(
         else:
             live[symbol] = frame
 
-    bench_frame = _cut(frames.get(benchmark), at)
-    bench_close = None if bench_frame is None else bench_frame["Close"].dropna()
-    vix_frame = _cut(frames.get(VIX), at) if use_vix else None
-    vix_close = None if vix_frame is None else vix_frame["Close"].dropna()
+    # The regime is read at the date of the members' newest bar: a benchmark or VIX bar that
+    # is newer (Yahoo had not yet published the members' latest day) must not be mixed in.
+    end = max((f["Close"].dropna().index[-1] for f in live.values()), default=None)
+
+    def _closes(name: str) -> pd.Series | None:
+        frame = _cut(frames.get(name), at)
+        if frame is None:
+            return None
+        close = frame["Close"].dropna()
+        return close if end is None else close[close.index <= end]
+
+    bench_close = _closes(benchmark)
+    vix_close = _closes(VIX) if use_vix else None
     breadth = breadth_above_sma200({s: f["Close"].dropna() for s, f in live.items()})
     regime = compute_regime(benchmark, bench_close, breadth, vix_close, use_vix=use_vix)
 
@@ -174,7 +191,7 @@ def run_scan(
     """
     if top < 1:
         raise ValueError("top must be at least 1")
-    parse_date(as_of_date)
+    as_of_date = parse_date(as_of_date)          # None means today
     now = now or datetime.now(UTC)
     info = universe_info(universe, tickers)
     description, benchmark = info.description["en"], info.benchmark

@@ -52,6 +52,7 @@ import pandas as pd
 from tradingagents.dataflows.vendors.yahoo.bulk import load_bulk_ohlcv
 from tradingagents.scanner import rules
 from tradingagents.scanner.fmt import fmt_num
+from tradingagents.scanner.notices import LABEL_NAMES
 from tradingagents.scanner.rules import LONG, MEDIUM, RULES, Panel
 from tradingagents.scanner.session import settled
 from tradingagents.scanner.shortterm.evaluate import (
@@ -68,7 +69,7 @@ logger = logging.getLogger(__name__)
 
 SNAPSHOT_NAME = "evidence.json"
 SNAPSHOT_PATH = Path(__file__).with_name(SNAPSHOT_NAME)
-SNAPSHOT_VERSION = 2
+SNAPSHOT_VERSION = 3
 IS_FRACTION = 0.70
 N_BOOT = 2000
 SEED = 20261113
@@ -179,16 +180,20 @@ def nonoverlap_tail(x, k: int) -> np.ndarray:
 def series_stats(values, hold: int, step: int, boot: bool = True) -> dict:
     """The statistics block of one series on one segment; values are fractions, output bps.
 
-    ``t_nonoverlap`` (plain t of the non-overlapping subsample ending at the last date) is
-    what the verdicts judge.  ``nw_t`` is kept for information and is optimistic.
-    ``phases_pass`` counts how many of the ``phases`` possible start offsets of the
-    non-overlapping subsample reach ``VALIDATED_T`` (transparency, not a criterion).
+    ``t_nonoverlap`` is what the verdicts judge: the MEDIAN, over all ``k`` possible phases
+    (start offsets) of the non-overlapping subsample, of the plain t.  Judging one fixed
+    phase made the verdict depend on an arbitrary choice (an independent review showed
+    t from 0.7 to 2.6 across the phases of the same cell), so the rule was changed to the
+    median.  ``phase_t`` keeps every phase's t (the snapshot shows them), ``t_tail`` is the
+    old single-phase value (subsample ending at the last date), ``phases_pass`` counts the
+    phases that reach ``VALIDATED_T``.  ``nw_t`` is kept for information and is optimistic.
     """
     x = np.asarray(values, dtype=float)
     x = x[np.isfinite(x)]
     k = math.ceil(hold / step)
     out = {"n": int(len(x)), "mean_bps": None, "median_bps": None, "pos_share": None,
-           "nw_t": 0.0, "t_nonoverlap": 0.0, "n_nonoverlap": 0, "phases": k, "phases_pass": 0,
+           "nw_t": 0.0, "t_nonoverlap": 0.0, "t_tail": 0.0, "phase_t": [],
+           "n_nonoverlap": 0, "mean_nonoverlap_bps": None, "phases": k, "phases_pass": 0,
            "ci_low_bps": None, "ci_high_bps": None}
     if len(x) == 0:
         return out
@@ -196,10 +201,16 @@ def series_stats(values, hold: int, step: int, boot: bool = True) -> dict:
     out["median_bps"] = float(np.median(x) * 1e4)
     out["pos_share"] = float((x > 0).mean())
     out["nw_t"] = nw_tstat(x, k - 1)
-    sub = nonoverlap_tail(x, k)
-    out["t_nonoverlap"] = plain_tstat(sub)
-    out["n_nonoverlap"] = int(len(sub))
-    out["phases_pass"] = int(sum(plain_tstat(x[o::k]) >= VALIDATED_T for o in range(k)))
+    phase_t = [plain_tstat(x[o::k]) for o in range(k)]
+    out["phase_t"] = [round(float(t), 3) for t in phase_t]
+    out["t_nonoverlap"] = float(np.median(phase_t))
+    out["t_tail"] = plain_tstat(nonoverlap_tail(x, k))
+    # the mean that belongs to the judged t: the phase(s) holding the median t
+    order = np.argsort(phase_t, kind="stable")
+    mid = order[(k - 1) // 2: k // 2 + 1]
+    out["mean_nonoverlap_bps"] = float(np.mean([x[o::k].mean() for o in mid]) * 1e4)
+    out["n_nonoverlap"] = int(round(float(np.median([len(x[o::k]) for o in range(k)]))))
+    out["phases_pass"] = int(sum(t >= VALIDATED_T for t in phase_t))
     if boot and len(x) >= 2:
         lo, hi = block_bootstrap_ci(x, k)
         out["ci_low_bps"], out["ci_high_bps"] = lo * 1e4, hi * 1e4
@@ -359,6 +370,25 @@ def judge_side(side: str, series: dict[str, dict], oos_2x: dict[str, float | Non
             "pooled_t_nw": float(s["ALL"].get("nw_t") or 0.0),
             "basket_too_small": bool(small),
             "strong": bool(verdict != "unproven" and pooled >= STRONG_T and not variant)}
+
+
+def phase_verdicts(side: str, series: dict[str, dict], oos_2x: dict[str, float | None],
+                   variant: bool = False, avg_basket: float | None = None) -> list[str]:
+    """The verdict the cell would get if the plain t of each single phase were judged
+    (phase p of in-sample with phase p of out-of-sample), before the robustness check.
+    Transparency only: the verdict itself uses the median over the phases."""
+    k = max((len(st.get("phase_t") or []) for s in series.values() for st in s.values()),
+            default=0)
+    out = []
+    for p in range(k):
+        shifted = {}
+        for name, segs in series.items():
+            shifted[name] = {
+                seg: {**st, PLAIN: (st["phase_t"][p] if p < len(st.get("phase_t") or [])
+                                    else st.get(PLAIN))}
+                for seg, st in segs.items()}
+        out.append(judge_side(side, shifted, oos_2x, variant, avg_basket)["verdict"])
+    return out
 
 
 # --------------------------------------------------------------------------- grid
@@ -591,6 +621,9 @@ def entries_for(family: str, rule_id: str, horizon: str, cell: dict, include_oos
             entry.update(judge_side(side, cell["series"], cell["oos_mean_2x_bps"], variant,
                                     cell["baskets"].get("ALL", {}).get(side)))
             entry["oos_mean_2x_bps"] = {n: cell["oos_mean_2x_bps"][n] for n in names}
+            entry["phase_verdicts"] = phase_verdicts(
+                side, cell["series"], cell["oos_mean_2x_bps"], variant,
+                cell["baskets"].get("ALL", {}).get(side))
             # what the first version of the study (Newey-West t, no basket rule) would say
             entry["legacy_verdict"] = judge_side(
                 side, cell["series"], cell["oos_mean_2x_bps"], variant, None, NEWEY_WEST)["verdict"]
@@ -907,8 +940,9 @@ def snapshot_dict(study: Study, generated_at: str | None = None) -> dict:
             "validated_min_oos_dates": VALIDATED_MIN_OOS_DATES,
             "experimental_min_oos_dates": EXPERIMENTAL_MIN_OOS_DATES,
             "min_basket": MIN_BASKET, "robust_k": ROBUST_K, "robust_min_t": ROBUST_MIN_T,
-            "statistic": "plain t of the non-overlapping subsample ending at the last decision "
-                         "date; the Newey-West t is information only (optimistic)"},
+            "statistic": "median over all phases of the plain t of the non-overlapping "
+                         "subsample (every phase t is stored as phase_t); the Newey-West t is "
+                         "information only (optimistic)"},
         "counts": count_evaluations(study),
         "rules": rule_meta,
         "variants": [{"id": k, **v} for k, v in rule_meta.items() if v["variant"]],
@@ -939,8 +973,8 @@ def load_snapshot(path: str | Path | None = None) -> dict | None:
 
 FAMILY_DE = {"stocks_us": "US-Aktien", "stocks_dax": "DAX-Aktien", "etfs": "ETFs (Welt + Sektoren)",
              "crypto": "Kryptowährungen"}
-VERDICT_DE = {"validated": "belegt", "experimental": "schwach belegt", "relative": "nur relativ",
-              "beta": "nur Markt-Beta", "unproven": "nicht belegt"}
+VERDICT_DE = {k: v[1][0].lower() + v[1][1:] for k, v in LABEL_NAMES.items()
+              if k != "not_studied"}
 HORIZON_DE = {"medium": "mittel (1 Monat)", "long": "lang (6 Monate)"}
 SIDE_DE = {"long": "Long", "short": "Short"}
 LABELS = ("validated", "experimental", "relative", "beta", "unproven")
@@ -1051,6 +1085,43 @@ def _before_after(s: dict, before: dict | None) -> list[str]:
     return out
 
 
+def _phase_section(s: dict) -> list[str]:
+    """The German section on the phase dependence of the verdicts (review finding M5)."""
+    out = ["## Phasenabhängigkeit des Urteils\n"]
+    out.append(
+        "Bei Halbjahres- und Monatsfenstern überlappen sich benachbarte Termine; das einfache t "
+        "nimmt deshalb nur jeden k-ten Termin. Welcher Termin der erste ist (die Phase), ist "
+        "willkürlich, und das t kann sich dadurch stark ändern. Beurteilt wird darum der Median "
+        "des t über alle k Phasen (In-Sample, Out-of-Sample und gepoolt); diese Regel wurde "
+        "festgelegt, nachdem eine unabhängige Prüfung die Phasenabhängigkeit gezeigt hatte, und "
+        "die Schwellen blieben unverändert. Unten die Zellen, die in mindestens einer einzelnen "
+        "Phase \"schwach belegt\" oder besser erreicht hätten (vor der Robustheitsprüfung; reine "
+        "Transparenz, keine Beurteilung):\n")
+    rows = []
+    for r in s["results"]:
+        pv = r.get("phase_verdicts") or []
+        hit = [i for i, v in enumerate(pv) if v in ("validated", "experimental")]
+        if not hit:
+            continue
+        ser = r["series"][r["judged"]]
+        rows.append([
+            f"{FAMILY_DE[r['family']]}, {r['rule']}, {HORIZON_DE[r['horizon']]}, "
+            f"{SIDE_DE[r['side']]}",
+            f"in {len(hit)} von {len(pv)} Phasen wäre die Zelle schwach belegt oder besser",
+            "/".join(_f(t) for t in ser["IS"].get("phase_t", [])),
+            "/".join(_f(t) for t in ser["OOS"].get("phase_t", [])),
+            f"{_f(ser['IS']['t_nonoverlap'])} / {_f(ser['OOS']['t_nonoverlap'])}",
+            VERDICT_DE[r["verdict"]]])
+    if rows:
+        out.append(_table(["Zelle", "Phasen", "IS-t je Phase", "OOS-t je Phase",
+                           "Median IS / OOS", "Urteil (Median)"], rows))
+    else:
+        out.append("Keine Zelle hätte in einer einzelnen Phase \"schwach belegt\" oder besser "
+                   "erreicht.")
+    out.append("")
+    return out
+
+
 def write_report(snapshot: dict, path: str | Path, before: dict | None = None) -> Path:
     from tradingagents.scanner.horizons import STALE_AFTER_DAYS
 
@@ -1072,14 +1143,15 @@ def write_report(snapshot: dict, path: str | Path, before: dict | None = None) -
       "Die Prüfung reproduzierte jede Zahl, zeigte aber, dass dieser Befund nicht trägt: er hing "
       "an drei Aktien, die mit Rückschau in der Liste stehen, sein t-Wert ignorierte die "
       "Überlappung der Fenster, und der mitgelieferte Stop zerstörte den gemessenen Vorteil. "
-      "Beurteilt wird jetzt (1) mit dem einfachen t auf nicht überlappenden Terminen, (2) nur "
+      "Beurteilt wird jetzt (1) mit dem Median des einfachen t auf nicht überlappenden Terminen über alle Phasen (siehe Abschnitt Phasenabhängigkeit), (2) nur "
       "mit Körben von im Schnitt mindestens drei Werten und (3) nur, wenn das Ergebnis auch "
       "ohne die drei Werte mit der höchsten Gesamtrendite besteht. Unten steht die Gegenüberstellung "
       "vorher / nachher.\n")
     w("## Kurzfassung\n")
     w(f"Einstufungen der {len(res)} Regel-Seiten-Zellen (Mehrfachnennungen derselben Messung "
-      f"inbegriffen): belegt {lc['validated']}, schwach belegt {lc['experimental']}, nur relativ "
-      f"{lc['relative']}, nur Markt-Beta {lc['beta']}, nicht belegt {lc['unproven']}.\n")
+      f"inbegriffen): {VERDICT_DE['validated']} {lc['validated']}, {VERDICT_DE['experimental']} "
+      f"{lc['experimental']}, {VERDICT_DE['relative']} {lc['relative']}, {VERDICT_DE['beta']} "
+      f"{lc['beta']}, {VERDICT_DE['unproven']} {lc['unproven']}.\n")
     if not best:
         w("**Keine der getesteten Regeln hat die korrigierte Prüfung bestanden.** Das ist das "
           "Ergebnis, kein Fehler: Die Anlageideen des Programms für Monate und Halbjahre sind "
@@ -1098,7 +1170,7 @@ def write_report(snapshot: dict, path: str | Path, before: dict | None = None) -
           f"absolut; ein Grund zum Meiden/Untergewichten, kein Grund für ein Short): {len(rel)} "
           "Fälle.")
     if beta:
-        w(f"\nNur **Markt-Beta** (Gewinn in absoluten Zahlen, aber nicht mehr als der "
+        w(f"\nNur **Marktrendite** (Gewinn in absoluten Zahlen, aber nicht mehr als der "
           f"Durchschnitt aller Werte verdient hat): {len(beta)} Fälle.")
     w("\n## Korrektur nach der unabhängigen Prüfung\n")
     w("Gegenüberstellung aller Zellen, deren Urteil sich geändert hat:\n")
@@ -1121,12 +1193,20 @@ def write_report(snapshot: dict, path: str | Path, before: dict | None = None) -
         "etwa das 1,22-fache zu hoch). In einer Monte-Carlo-Prüfung ohne echten Effekt erreichten "
         "7,2 % (lang, 94 Termine), 9,6 % (lang, 44 Termine) und 5,0 % (mittel) ein t von mindestens "
         "2 – statt der nominalen 2,3 %. Beurteilt wird deshalb jetzt mit dem **einfachen t der "
-        "nicht überlappenden Termine** (jeder k-te Termin, vom letzten Entscheidungstag des "
-        "Abschnitts aus gezählt; so ist die Phase eindeutig), getrennt für In-Sample, "
+        "nicht überlappenden Termine** (jeder k-te Termin; maßgeblich ist der **Median über alle "
+        "k möglichen Phasen**, siehe Abschnitt Phasenabhängigkeit), getrennt für In-Sample, "
         "Out-of-Sample und gepoolt. Das Newey-West-t steht weiter in den Daten, als "
-        "optimistisch gekennzeichnet; zusätzlich steht im Datensatz, wie viele der möglichen "
-        "Phasen (Startversätze) ein t von mindestens 2 erreichen würden (reine Transparenz, "
-        "kein Kriterium).",
+        "optimistisch gekennzeichnet; zusätzlich stehen im Datensatz die t-Werte aller Phasen "
+        "(Startversätze).",
+        "**Das Urteil hing an einer willkürlichen Phase.** Die erste korrigierte Fassung "
+        "beurteilte nur eine feste Phase der nicht überlappenden Termine (die am letzten Termin "
+        "endende). Eine weitere unabhängige Prüfung zeigte, dass sich bei derselben Zelle (US-Aktien, "
+        "Momentum, lang, Long) das t je nach Phase stark ändert und die gewählte Phase die mit dem "
+        "niedrigsten In-Sample-t war. Diese Regel wurde deshalb nach jener Prüfung festgelegt: "
+        "beurteilt wird der **Median des einfachen t über alle Phasen**, für In-Sample, "
+        "Out-of-Sample, gepoolt und ebenso in der Robustheitsprüfung; die Schwellen blieben "
+        "unverändert. Der Mittelwert, der neben dem t genannt wird, stammt aus derselben "
+        "Phase (bzw. dem Mittel der beiden mittleren Phasen).",
         "**Der Stop zerstörte den Vorteil.** Im eigenen Stop-Modus der Studie (siehe unten) "
         "wurde aus +597 Basispunkten außerhalb der Stichprobe für die frühere US-Zelle ein Minus. "
         "Für die Zeit-Ausstiegs-Regeln (mittel, lang) schlägt das Programm deshalb keinen Stop "
@@ -1160,6 +1240,7 @@ def write_report(snapshot: dict, path: str | Path, before: dict | None = None) -
       "Zeitraum (\"Drift\"): Wer nur mit dem steigenden Markt mitschwimmt, hat keinen Vorteil "
       "gezeigt. Gerechnet wird nach Kosten (10 Basispunkte je Hin- und Rückweg bei Aktien/ETFs, "
       "30 bei Krypto); der Test wird zusätzlich mit doppelten Kosten geprüft.\n")
+    out.extend(_phase_section(s))
     w("## Daten\n")
     rows = []
     for name, f in s["families"].items():
@@ -1175,10 +1256,10 @@ def write_report(snapshot: dict, path: str | Path, before: dict | None = None) -
       "deren Haltefenster in den OOS-Zeitraum hineinreicht, werden entfernt (Purge). Die Kursdaten "
       "enden beim letzten Tag, der zum Zeitpunkt des Downloads abgeschlossen war.\n")
     w("## Ergebnisse je Familie\n")
-    w("Spalten: Termine (n) und mittlere Rendite je Termin in Basispunkten (1 bp = 0,01 %) der "
+    w("Spalten: Termine (n) und mittlere Rendite je Termin (alle, auch überlappende Termine) in Basispunkten (1 bp = 0,01 %) der "
       "**beurteilten Reihe** (Long: Vorsprung vor dem Durchschnitt aller Werte; Short: "
-      "tatsächlicher Gewinn des Shorts), jeweils nach Kosten. t = einfaches t der nicht "
-      "überlappenden Termine (so wird beurteilt; |t| ≥ 2 gilt als auffällig), \"NW-t\" = "
+      "tatsächlicher Gewinn des Shorts), jeweils nach Kosten. t = Median des einfachen t der nicht "
+      "überlappenden Termine über alle Phasen (so wird beurteilt; |t| ≥ 2 gilt als auffällig), \"NW-t\" = "
       "Newey-West-t über alle Termine (nur zur Information, optimistisch), \"n ohne\" = Zahl der "
       "nicht überlappenden Termine im OOS-Teil.\n")
     for name in s["families"]:
@@ -1285,7 +1366,7 @@ def write_report(snapshot: dict, path: str | Path, before: dict | None = None) -
       "(Survivorship) und auf Regeln, die nach Sicht der In-Sample-Zahlen um Varianten ergänzt "
       "wurden. Bei Varianten gilt bei gleichem Urteil die vorab festgelegte Regel als "
       "maßgeblich.\n")
-    w("Zur Beschriftung \"nur Markt-Beta\": Dieses Etikett (Long-Seite besteht auf absoluter "
+    w("Zur Beschriftung \"nur Marktrendite\": Dieses Etikett (Long-Seite besteht auf absoluter "
       "Rendite, hat aber keinen belegten Vorsprung vor dem Durchschnitt aller Werte außerhalb der "
       "Stichprobe, also Mittelwert ≤ 0 oder t < 1) wurde nach dem ersten Gesamtlauf präzisiert, "
       "damit Regeln, die außerhalb der Stichprobe doch vorn lagen, aber im Auswahlzeitraum "
@@ -1329,13 +1410,16 @@ def write_report(snapshot: dict, path: str | Path, before: dict | None = None) -
         ["EXPERIMENTAL_T_IS", _f(th["experimental_t_is"]), "schwach belegt: t im In-Sample-Teil"],
         ["EXPERIMENTAL_T_OOS", _f(th["experimental_t_oos"]), "schwach belegt: t im Out-of-Sample-Teil "
          "bei positivem Mittelwert; zugleich die Grenze, unter der ein Vorsprung vor dem Markt als "
-         "\"nicht vorhanden\" gilt (nur Markt-Beta)"],
+         "\"nicht vorhanden\" gilt (nur Marktrendite)"],
         ["STRONG_T", _f(th["strong_t"]), "\"stark\": gepooltes t mindestens so hoch; nie für Varianten"],
         ["VALIDATED_MIN_OOS_DATES", str(th["validated_min_oos_dates"]),
-         "Mindestzahl Termine im Out-of-Sample-Teil für \"belegt\" (alle Termine, auch überlappende)"],
+         "Mindestzahl Termine im Out-of-Sample-Teil für \"belegt\"; geprüft wird die Zahl aller "
+         "Termine (auch überlappender), während das t aus den nicht überlappenden Terminen "
+         "stammt; die Schwelle wurde nicht geändert"],
         ["EXPERIMENTAL_MIN_OOS_DATES", str(th["experimental_min_oos_dates"]),
          "Mindestzahl Termine im Out-of-Sample-Teil für \"schwach belegt\"; ein t ≥ 1 auf wenigen "
-         "Terminen ist Rauschen"],
+         "Terminen ist Rauschen; auch hier zählen alle (überlappenden) Termine, nicht die "
+         "nicht überlappenden, aus denen das t stammt"],
         ["MIN_BASKET", str(th["min_basket"]), "durchschnittliche Korbgröße, ab der ein Urteil über "
          "\"nicht belegt\" hinaus möglich ist"],
         ["ROBUST_K / ROBUST_MIN_T", f"{th['robust_k']} / {_f(th['robust_min_t'])}",
@@ -1363,7 +1447,8 @@ def write_report(snapshot: dict, path: str | Path, before: dict | None = None) -
         "**V1 entstand aus derselben Zelle**, die sie später bestätigen sollte; die Variante ist "
         "kein unabhängiger Beleg.",
         "**Das Newey-West-t ist optimistisch** und wird nur zur Information mitgeführt; "
-        "beurteilt wird mit dem einfachen t der nicht überlappenden Termine. Dieses beruht auf "
+        "beurteilt wird mit dem Median des einfachen t der nicht überlappenden Termine über alle "
+        "Phasen. Dieses beruht auf "
         "wenigen Beobachtungen (beim Halbjahr etwa 7 bis 8 im Testabschnitt) und ist entsprechend "
         "unscharf.",
         "**Der größte Rückgang** der Risikosicht wird auf täglichen Kursen innerhalb der "

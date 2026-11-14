@@ -197,7 +197,7 @@ def test_swing_idea_that_only_earns_the_drift_is_labelled_beta(monkeypatch):
     assert len(swing) == 1 and swing[0].evidence.label == "beta" and swing[0].watch_only
     assert swing[0].size_pct is None and swing[0].stop is None and swing[0].entry == {}
     text = swing[0].evidence.text("de")
-    assert "Markt-Beta" in text and "655" in text
+    assert "Nur Marktrendite" in text and "655" in text
     note = next(n for n in out.notes if n.code == "idea_beta_only")
     assert "S3l" in note.text("de") and note.params["horizon"] == "swing"
 
@@ -280,7 +280,7 @@ def test_evidence_wording_matches_each_label():
     rel = hz.Evidence(label="relative", judged="short_excess", **base)
     assert "meiden" in rel.text("de") and "avoid" in rel.text("en")
     beta = hz.Evidence(label="beta", judged="long_abs", excess_mean_bps=-2.0, excess_t=0.3, **base)
-    assert "Markt-Beta" in beta.text("de") and "-0,02 %" in beta.text("de")
+    assert "Nur Marktrendite" in beta.text("de") and "-0,02 %" in beta.text("de")
     flat = hz.Evidence(label="unproven", judged="long_excess",
                        **{**base, "oos_t": 0.3, "oos_mean_bps": 4.0})
     assert flat.text("de").startswith("Nicht belegt: im Test (2014–2026, 612 Termine) kein messbarer")

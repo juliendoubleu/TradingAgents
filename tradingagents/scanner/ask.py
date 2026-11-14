@@ -26,10 +26,11 @@ from tradingagents.scanner.assess import (
     Loader,
     _score,
     assess,
+    collapse_summary,
     label_text,
     render_compact,
 )
-from tradingagents.scanner.horizons import HORIZONS
+from tradingagents.scanner.horizons import HORIZONS, watch_direction
 
 # --------------------------------------------------------------------------- parsing
 
@@ -83,35 +84,69 @@ class ParsedQuestion:
     intent: str = "none"                                   # buy | short | sell | hold | none
     compare: bool = False
     event_like: bool = False
+    period_text: str | None = None                         # the asked period as written
+    period_months: float | None = None                     # ... in months (only above 1 month)
 
     def to_dict(self) -> dict:
         return {"text": self.text, "lang": self.lang, "tickers": self.tickers,
                 "names": [list(n) for n in self.names], "unverified": self.unverified,
                 "horizons": self.horizons, "intent": self.intent, "compare": self.compare,
-                "event_like": self.event_like}
+                "event_like": self.event_like,
+                "period_text": self.period_text, "period_months": self.period_months}
 
 
-def _horizon_for(n: float, unit: str) -> str:
+def _months_of(n: float, unit: str) -> float | None:
+    """The asked period in months (None for days: they never reach the month studies)."""
     u = unit.lower()
-    if u.startswith(("tag", "day")):
-        return "swing" if n <= 14 else "medium" if n <= 120 else "long"
-    if u.startswith(("woche", "week")):
-        return "swing" if n <= 2 else "medium" if n <= 17 else "long"
     if u.startswith(("monat", "month")):
-        return "medium" if n <= 4 else "long"
-    return "long"
+        return n
+    if u.startswith(("jahr", "year")):
+        return 12.0 * n
+    if u.startswith(("woche", "week")):
+        return n * 7.0 / 30.4
+    if u.startswith(("tag", "day")):
+        return n / 30.4
+    return None
+
+
+def _horizons_for(n: float, unit: str) -> list[str]:
+    """The study horizons that answer "``n`` ``unit``".  The studies measure about 1 month
+    (medium) and about 6 months (long); an asked period in between (2 to 4 months) gets both,
+    one beyond them (10 months and more) the long one."""
+    u = unit.lower()
+    if u.startswith(("tag", "day")) and n <= 14:
+        return ["swing"]
+    if u.startswith(("woche", "week")) and n <= 2:
+        return ["swing"]
+    months = _months_of(n, unit)
+    if months is None:
+        return ["long"]
+    if months <= 1.25:
+        return ["medium"]
+    if months < 4.5:
+        return ["medium", "long"]
+    return ["long"]
 
 
 def _horizons(text: str) -> list[str]:
     found: set[str] = set()
 
     def numbered(m: re.Match) -> str:
-        found.add(_horizon_for(float(m.group(1).replace(",", ".")), m.group(2)))
+        found.update(_horizons_for(float(m.group(1).replace(",", ".")), m.group(2)))
         return " "
 
     rest = _NUMBER_RE.sub(numbered, text)       # "12 Monate" must not also count as "Monate"
     found.update(h for h, rx in _HORIZON_WORDS.items() if rx.search(rest))
     return [h for h in HORIZON_ORDER if h in found]
+
+
+def _asked_period(text: str) -> tuple[str | None, float | None]:
+    """The first numbered period of the question as written ("3 Monate") and in months."""
+    for m in _NUMBER_RE.finditer(text):
+        months = _months_of(float(m.group(1).replace(",", ".")), m.group(2))
+        if months is not None and months > 1.25:
+            return m.group(0).strip(), months
+    return None, None
 
 
 def _language(text: str) -> str:
@@ -174,7 +209,8 @@ def parse_question(text: str) -> ParsedQuestion:
         text=original, lang=_language(original), tickers=tickers, names=names,
         unverified=[u for u in dict.fromkeys(unverified) if u in tickers],
         horizons=_horizons(original), intent=intent, compare=len(tickers) >= 2,
-        event_like=bool(_EVENT_RE.search(original)))
+        event_like=bool(_EVENT_RE.search(original)),
+        period_text=_asked_period(original)[0], period_months=_asked_period(original)[1])
 
 
 # --------------------------------------------------------------------------- answering
@@ -201,6 +237,37 @@ _INTENT_WORD = {
 CMD = "python -m cli.main"
 
 
+_HOLD = {"day": ("bis Handelsschluss", "until the close"),
+         "swing": ("2 bis 10 Handelstage", "2 to 10 trading days"),
+         "medium": ("etwa 1 Monat", "about 1 month"),
+         "long": ("etwa 6 Monate", "about 6 months")}
+
+
+def _horizon_tested(h: str, lang: str) -> str:
+    """The horizon name with the holding period the study measured: nothing else is tested."""
+    return (f"{HORIZONS[h].label[lang]} ("
+            + _t("getestete Haltedauer ", "tested holding period ", lang) + _HOLD[h][lang != "de"]
+            + ")")
+
+
+def _period_note(p: ParsedQuestion, lang: str) -> str:
+    """Says when the asked period itself was not tested (only about 1 and about 6 months)."""
+    m = p.period_months
+    if m is None or p.period_text is None:
+        return ""
+    asked = p.period_text
+    if 1.25 < m < 4.5:
+        return _t(f"{asked} wurden nicht getestet; die Studien messen etwa 1 Monat "
+                  "(mittelfristig) und etwa 6 Monate (langfristig)",
+                  f"{asked} were not tested; the studies measure about 1 month (medium term) "
+                  "and about 6 months (long term)", lang)
+    if m >= 9.5:
+        return _t(f"{asked} wurden nicht getestet; die längste gemessene Haltedauer beträgt "
+                  "etwa 6 Monate", f"{asked} were not tested; the longest measured holding "
+                  "period is about 6 months", lang)
+    return ""
+
+
 def _understood(p: ParsedQuestion, lang: str) -> str:
     parts = []
     if p.tickers:
@@ -208,14 +275,27 @@ def _understood(p: ParsedQuestion, lang: str) -> str:
                      + ", ".join(display_name(s) for s in p.tickers))
     else:
         parts.append(_t("kein Wertpapier erkannt", "no instrument recognised", lang))
-    if p.horizons:
+    if p.horizons and p.tickers:
         parts.append(_t("Horizont: ", "Horizon: ", lang)
-                     + ", ".join(HORIZONS[h].label[lang] for h in p.horizons))
+                     + ", ".join(_horizon_tested(h, lang) for h in p.horizons))
     if p.intent in _INTENT_WORD:
         parts.append(_t("Absicht: ", "Intent: ", lang) + _INTENT_WORD[p.intent][lang != "de"])
     if p.compare:
         parts.append(_t("Vergleich", "comparison", lang))
-    return _t("Verstanden: ", "Understood: ", lang) + " · ".join(parts) + "."
+    note = _period_note(p, lang)
+    return (_t("Verstanden: ", "Understood: ", lang) + " · ".join(parts) + "."
+            + (f" {note}." if note else ""))
+
+
+def _chat_hint(lang: str) -> str:
+    """What the owner should DO with a question this program cannot answer itself."""
+    return _t(
+        "**Was du jetzt tun kannst:** Stell diese Frage direkt im Claude-Chat zu diesem Projekt "
+        "(zum Beispiel als Antwort auf eine Benachrichtigung): dort bekommst du eine "
+        "Einschätzung, die eigene Analyse mit den Messwerten dieses Programms verbindet.",
+        "**What you can do now:** ask this question directly in the Claude chat for this project "
+        "(for example as a reply to a notification): there you get an assessment that combines "
+        "its own analysis with this program's measured facts.", lang)
 
 
 def _event_note(lang: str) -> str:
@@ -223,16 +303,19 @@ def _event_note(lang: str) -> str:
         "**Zur Ereignisfrage:** Was ein Ereignis (Spiel-Release, Wahl, Zinsentscheid ...) für "
         "den Markt bedeutet, beantwortet dieses Programm nicht selbst: dazu gehört Nachdenken "
         "darüber, welche Unternehmen betroffen sind und welche früheren Ereignisse vergleichbar "
-        "sind. Das macht eine Claude-Chat-Sitzung zu diesem Repository: sie verbindet eigene "
-        "Überlegungen mit den gemessenen Fakten dieses Programms. Messbare Bausteine zum "
-        f"selbst Ausführen: `{CMD} event-study SYMBOL --dates \"JJJJ-MM-TT:Name\"` "
+        "sind. Stell diese Frage direkt im Claude-Chat zu diesem Projekt (zum Beispiel als "
+        "Antwort auf eine Benachrichtigung): dort bekommst du eine Einschätzung, die eigene "
+        "Analyse mit den Messwerten dieses Programms verbindet. "
+        "Für Selbermacher, messbare Bausteine zum Ausführen: "
+        f"`{CMD} event-study SYMBOL --dates \"JJJJ-MM-TT:Name\"` "
         f"(Kursverhalten rund um frühere Termine) und `{CMD} implied-move SYMBOL` "
         "(was der Optionsmarkt für die nächsten Wochen einpreist).",
         "**On the event question:** what an event (a game release, an election, a rate "
         "decision ...) means for the market is not answered by this program itself: it takes "
         "reasoning about which companies are affected and which past events are comparable. "
-        "A Claude chat session on this repository does that: it combines its own reasoning "
-        "with this program's measured facts. Measurable building blocks you can run yourself: "
+        "Ask this question directly in the Claude chat for this project (for example as a reply "
+        "to a notification): there you get an assessment that combines its own analysis with "
+        "this program's measured facts. For do-it-yourselfers, measurable building blocks: "
         f"`{CMD} event-study SYMBOL --dates \"YYYY-MM-DD:name\"` (price behaviour around past "
         f"dates) and `{CMD} implied-move SYMBOL` (what the options market prices in for the "
         "coming weeks).", lang)
@@ -249,16 +332,16 @@ def _fallback(p: ParsedQuestion, lang: str, failed: list[str]) -> str:
         "einschätzen könnte, und erfinde deshalb keine Einschätzung.",
         "**I cannot answer this as asked.** I recognise no instrument in it that I could "
         "assess, so I will not invent an assessment.", lang))
-    lines.append(_event_note(lang))
+    lines.append(_chat_hint(lang))
     lines.append(_t(
-        "**Bausteine:**\n"
+        "**Für Selbermacher (Bausteine):**\n"
         f"- `{CMD} assess NVDA SAP.DE --lang de`: Einschätzung und Vergleich je Anlagehorizont\n"
         f"- `{CMD} event-study TTWO --dates \"2018-10-26:Red Dead Redemption 2\" --lang de`\n"
         f"- `{CMD} implied-move TTWO --lang de`\n"
         f"- `{CMD} scan --universe us --lang de`: die Lage im ganzen Markt\n"
-        "\nNenne Instrumente beim Namen oder Symbol (z. B. „Nvidia\", „SAP\", „Bitcoin\", "
+        "\nOder nenne Instrumente beim Namen oder Symbol (z. B. „Nvidia\", „SAP\", „Bitcoin\", "
         "„Gold\", „TTWO\"), dann antworte ich mit den Daten.",
-        "**Building blocks:**\n"
+        "**For do-it-yourselfers (building blocks):**\n"
         f"- `{CMD} assess NVDA SAP.DE`: assessment and comparison per horizon\n"
         f"- `{CMD} event-study TTWO --dates \"2018-10-26:Red Dead Redemption 2\"`\n"
         f"- `{CMD} implied-move TTWO`\n"
@@ -284,7 +367,7 @@ def _short_lines(a: Assessment, horizons: list[str], lang: str) -> list[str]:
             if shorts:
                 idea = shorts[0]
                 kind = _t("Short-Empfehlung", "Short recommendation", lang) \
-                    if not idea.watch_only else _t("nur Short-Beobachtung", "Short watch only", lang)
+                    if not idea.watch_only else _t("nur Beobachtung, technisch schwach", "watch only, technically weak", lang)
                 out.append(f"- {lab}, {t.name}: {kind} ({label_text(idea.evidence.label, lang)}): "
                            f"{idea.evidence.text(lang)}")
                 continue
@@ -310,16 +393,17 @@ def _short_leads(a: Assessment, horizons: list[str], lang: str) -> list[str]:
                              f"Short recommendation ({label_text(shorts[0].evidence.label, lang)})",
                              lang)
             elif shorts:
-                verdict = _t("keine belegte Short-Empfehlung, nur auf der Short-Beobachtungsliste",
-                             "no evidenced Short recommendation, only on the Short watch list",
-                             lang)
+                verdict = _t("keine belegte Short-Empfehlung, nur technisch schwach (Beobachtung)",
+                             "no evidenced Short recommendation, only technically weak "
+                             "(watch only)", lang)
             else:
                 verdict = _t("keine belegte Short-Empfehlung und aktuell auch kein Short-Signal",
                              "no evidenced Short recommendation and currently no Short signal",
                              lang)
             tech = "" if t.signal is None else _t(
-                f" (technisches Bild: {t.signal.direction}, Score {_score(t.signal.score, lang)})",
-                f" (technical picture: {t.signal.direction}, score "
+                f" (technisches Bild: {watch_direction(t.signal.direction, 'de')}, "
+                f"Score {_score(t.signal.score, lang)})",
+                f" (technical picture: {watch_direction(t.signal.direction, 'en')}, score "
                 f"{_score(t.signal.score, lang)})", lang)
             parts.append(f"{t.name}: {verdict}{tech}")
         out.append(f"{HORIZONS[h].label[lang]}: " + "; ".join(parts) + ".")
@@ -357,7 +441,7 @@ def answer_question(
     if parsed.intent == "short":
         leads = _short_leads(a, horizons, lang)
     else:
-        leads = [s.text(lang) for s in a.summary_items if s.params["horizon"] in horizons]
+        leads = collapse_summary([s for s in a.summary_items if s.params["horizon"] in horizons], lang)
     parts = ["## " + _t("Antwort", "Answer", lang), _understood(parsed, lang)]
     if failed:
         parts.append(_t(f"Keine Kursdaten gefunden für: {', '.join(failed)}.",

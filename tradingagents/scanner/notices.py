@@ -11,6 +11,23 @@ from collections.abc import Callable
 
 from tradingagents.scanner.fmt import format_text
 
+# One German/English name per evidence label: the single source for scan, report, digest,
+# assess, ask and the study report (README and CLAUDE.md quote the same words).
+LABEL_NAMES: dict[str, tuple[str, str]] = {
+    "validated": ("Validated", "Belegt"),
+    "experimental": ("Weakly supported", "Schwach belegt"),
+    "relative": ("Relatively weaker only", "Nur relativ schwächer"),
+    "beta": ("Market return only", "Nur Marktrendite"),
+    "unproven": ("Not proven", "Nicht belegt"),
+    "not_studied": ("Not studied", "Nicht untersucht"),
+}
+
+
+def label_name(label: str, lang: str = "en") -> str:
+    """The reader-facing name of an evidence label in ``lang`` ('de' or English)."""
+    return LABEL_NAMES.get(label, (label, label))[1 if lang == "de" else 0]
+
+
 # code -> language -> a template for ``fmt.format_text`` or a function of the parameters
 _TEXT: dict[str, dict[str, str | Callable[[dict], str]]] = {
     "no_data": {"en": "no price data from Yahoo", "de": "keine Kursdaten von Yahoo"},
@@ -40,11 +57,11 @@ _TEXT: dict[str, dict[str, str | Callable[[dict], str]]] = {
         "de": "Der neueste Kurs ist vom {asof}, {lag} Tage vor dem angefragten {requested}.",
     },
     "running_bar_removed": {
-        "en": "{n} of {total} instruments had a still-running daily bar removed (their exchange "
-              "session was not over yet); the figures use the last finished session.",
-        "de": "Bei {n} von {total} Instrumenten wurde ein noch laufender Tageskurs entfernt "
-              "(die Börsensitzung war noch nicht beendet); die Zahlen nutzen die letzte "
-              "abgeschlossene Sitzung.",
+        "en": "{n} of {total} instruments had a daily bar removed that was not final yet (exchange "
+              "close plus a 20-minute buffer); the figures use the last finished day.",
+        "de": "Bei {n} von {total} Instrumenten wurde ein Tageskurs entfernt, der noch nicht "
+              "abgeschlossen war (Börsenschluss plus 20 Minuten Puffer); die Zahlen nutzen den "
+              "letzten abgeschlossenen Tag.",
     },
     "past_date": {
         "en": "Scan date {date} is in the past: prices are back-adjusted for later dividends "

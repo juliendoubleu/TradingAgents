@@ -13,15 +13,19 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import asdict, dataclass
-from datetime import date
+from datetime import UTC, date, datetime, time
+from zoneinfo import ZoneInfo
 
 import yfinance as yf
 
-from tradingagents.dataflows.errors import VendorUnavailableError
+from tradingagents.dataflows.errors import NoMarketDataError, VendorUnavailableError
 from tradingagents.dataflows.symbols import normalize_symbol
 from tradingagents.dataflows.vendors.yahoo.common import yf_retry
 
 logger = logging.getLogger(__name__)
+
+_NY = ZoneInfo("America/New_York")
+_OPTIONS_CLOSE = time(16, 0)      # listed US options stop trading at 16:00 New York time
 
 # Yahoo reports 1e-05 as the implied volatility of a contract it has no quote for.
 _MIN_IV = 1e-3
@@ -46,6 +50,7 @@ class ImpliedMove:
     put_open_interest: int | None = None
     call_iv: float | None = None
     put_iv: float | None = None
+    expires_today: bool = False   # dated today in New York, the session is still running
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -94,20 +99,33 @@ def _spot(ticker) -> float | None:
     return float(closes.iloc[-1]) if len(closes) else None
 
 
-def load_implied_moves(symbol: str, max_expiries: int = 4) -> list[ImpliedMove]:
+def load_implied_moves(symbol: str, max_expiries: int = 4,
+                       now: datetime | None = None) -> list[ImpliedMove]:
     """Straddle-implied moves for the next ``max_expiries`` expiries dated today or later.
 
-    A symbol without listed options (most non-US tickers, Yahoo's indices) returns [],
-    which is an answer. An expiry where a leg has no usable price is skipped, never
-    guessed. Yahoo being unreachable raises ``VendorUnavailableError``.
+    An expiry dated today (New York) is dropped once its session has ended (16:00), and
+    marked ``expires_today`` before that.  A symbol without listed options (most non-US
+    tickers, Yahoo's indices) returns [], which is an answer; a symbol Yahoo does not know
+    at all raises ``NoMarketDataError``.  An expiry where a leg has no usable price is
+    skipped, never guessed. Yahoo being unreachable raises ``VendorUnavailableError``.
+    ``now`` (UTC) makes the clock injectable for tests.
     """
     canonical = normalize_symbol(symbol)
     ticker = yf.Ticker(canonical)
     expiries = yf_retry(lambda: ticker.options)
     if not expiries:
+        if yf_retry(lambda: _spot(ticker)) is None:
+            raise NoMarketDataError(symbol, canonical, "no price history")
         return []
-    today = date.today()
-    upcoming = [e for e in expiries if date.fromisoformat(e) >= today][:max(0, max_expiries)]
+    now_ny = (now or datetime.now(UTC)).astimezone(_NY)
+    today = now_ny.date()
+    closed = now_ny.time() >= _OPTIONS_CLOSE
+
+    def alive(e: str) -> bool:
+        d = date.fromisoformat(e)
+        return d > today or (d == today and not closed)
+
+    upcoming = [e for e in expiries if alive(e)][:max(0, max_expiries)]
     if not upcoming:
         return []
     spot = yf_retry(lambda: _spot(ticker))
@@ -153,5 +171,6 @@ def load_implied_moves(symbol: str, max_expiries: int = 4) -> list[ImpliedMove]:
             put_open_interest=_oi(prow),
             call_iv=_iv(crow),
             put_iv=_iv(prow),
+            expires_today=expiry == today.isoformat(),
         ))
     return out

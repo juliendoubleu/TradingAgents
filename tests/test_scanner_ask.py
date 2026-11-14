@@ -57,7 +57,9 @@ def test_resolve_and_display_name():
 @pytest.mark.unit
 def test_names_symbols_horizon_intent_and_language_of_the_example_question():
     p = K.parse_question("Soll ich Nvidia oder SAP auf 3 Monate kaufen?")
-    assert p.tickers == ["NVDA", "SAP.DE"] and p.horizons == ["medium"]
+    # 3 months were never tested: both the 1-month and the 6-month study are shown
+    assert p.tickers == ["NVDA", "SAP.DE"] and p.horizons == ["medium", "long"]
+    assert p.period_text == "3 Monate" and p.period_months == 3
     assert p.intent == "buy" and p.compare and p.lang == "de" and not p.event_like
 
 
@@ -112,8 +114,9 @@ def test_all_caps_text_does_not_turn_words_into_symbols():
     ("heute NVDA", ["day"]), ("Daytrade auf NVDA", ["day"]),
     ("in ein paar Tagen", ["swing"]), ("nächste Woche", ["swing"]),
     ("kurzfristig", ["swing"]), ("mittelfristig", ["medium"]), ("langfristig", ["long"]),
-    ("auf 3 Monate", ["medium"]), ("12 Monate", ["long"]), ("6 Monate", ["long"]),
-    ("in 2 Jahren", ["long"]), ("10 Tage", ["swing"]), ("3 Wochen", ["medium"]),
+    ("auf 1 Monat", ["medium"]), ("auf 3 Monate", ["medium", "long"]),
+    ("2 Monate", ["medium", "long"]), ("4 Monate", ["medium", "long"]), ("12 Monate", ["long"]), ("6 Monate", ["long"]),
+    ("in 2 Jahren", ["long"]), ("10 Tage", ["swing"]), ("3 Wochen", ["medium"]), ("8 Wochen", ["medium", "long"]),
     ("heute und langfristig", ["day", "long"]), ("NVDA", []),
     ("for 12 months", ["long"]), ("over the next week", ["swing"]),
 ])
@@ -161,10 +164,13 @@ def test_answer_for_two_instruments_leads_with_the_asked_horizon(monkeypatch):
     ans = K.answer_question("Soll ich Nvidia oder SAP auf 3 Monate kaufen?", as_of_date=END,
                             loader=loader, now=NOW)
     text = ans.text
-    assert ans.assessment is not None and ans.parsed.horizons == ["medium"]
+    assert ans.assessment is not None and ans.parsed.horizons == ["medium", "long"]
     short = text.split("**Kurzantwort**")[1].split("\n\n")[0]
-    assert short.count("- ") == 1 and "Mittelfristig: Für keinen der beiden Werte" in short
-    for needed in ("Verstanden:", "Nvidia (NVDA)", "SAP (SAP.DE)", "Horizont: Mittelfristig",
+    assert "Mittelfristig, Langfristig: Für keinen der beiden Werte" in short   # collapsed
+    assert "3 Monate wurden nicht getestet; die Studien messen etwa 1 Monat (mittelfristig) " \
+        "und etwa 6 Monate (langfristig)" in text
+    for needed in ("Verstanden:", "Nvidia (NVDA)", "SAP (SAP.DE)",
+                   "Mittelfristig (getestete Haltedauer etwa 1 Monat)",
                    "Absicht: kaufen / einsteigen", "Vergleich", "Technisches Bild",
                    "Keine Anlageberatung"):
         assert needed in text, needed
@@ -188,10 +194,10 @@ def test_short_question_shows_the_short_evidence_and_the_risk(monkeypatch):
                             now=NOW)
     assert "**Zur Short-Seite**" in ans.text
     assert shorts[0].evidence.text("de") in ans.text.split("**Zur Short-Seite**")[1]
-    assert "nur Short-Beobachtung" in ans.text and "Verlust nicht auf den Einsatz begrenzt" in ans.text
+    assert "nur Beobachtung, technisch schwach" in ans.text and "Verlust nicht auf den Einsatz begrenzt" in ans.text
     lead = ans.text.split("**Kurzantwort**")[1].split("\n\n")[0]
-    assert "Mittelfristig: Tesla (TSLA): keine belegte Short-Empfehlung, nur auf der " \
-        "Short-Beobachtungsliste (technisches Bild: Short, Score -60)" in lead
+    assert "Mittelfristig: Tesla (TSLA): keine belegte Short-Empfehlung, nur technisch " \
+        "schwach (Beobachtung) (technisches Bild: technisch schwach, Score -60)" in lead
     assert "Short-Empfehlung (" not in ans.text and "Short recommendation" not in ans.text
 
 
@@ -220,7 +226,7 @@ def test_instruments_in_an_event_question_get_the_event_note(monkeypatch):
     ans = K.answer_question("GTA 6 erscheint nächste Woche, was passiert mit Take-Two?",
                             as_of_date=END, loader=loader, now=NOW)
     assert ans.assessment is not None and ans.parsed.event_like
-    assert "Zur Ereignisfrage" in ans.text and "Claude-Chat-Sitzung" in ans.text
+    assert "Zur Ereignisfrage" in ans.text and "direkt im Claude-Chat" in ans.text
     assert "event-study" in ans.text and "implied-move" in ans.text
 
 
@@ -233,8 +239,8 @@ def test_open_event_question_gets_the_honest_fallback_not_an_assessment(monkeypa
     text = ans.text
     assert ans.assessment is None and ans.parsed.tickers == []
     for needed in ("kein Wertpapier erkannt", "So kann ich das nicht beantworten",
-                   "erfinde deshalb keine Einschätzung", "Claude-Chat-Sitzung",
-                   "eigene Überlegungen", "event-study", "implied-move", "assess",
+                   "erfinde deshalb keine Einschätzung", "Stell diese Frage direkt im Claude-Chat",
+                   "Für Selbermacher", "event-study", "implied-move", "assess",
                    "Keine Anlageberatung"):
         assert needed in text, needed
     assert "Score" not in text and "Empfehlung Long" not in text
@@ -243,7 +249,7 @@ def test_open_event_question_gets_the_honest_fallback_not_an_assessment(monkeypa
 @pytest.mark.unit
 def test_fallback_in_english():
     text = K.answer_question("What does the GTA VI release mean for the market?", lang="en").text
-    assert "I cannot answer this as asked" in text and "Claude chat session" in text
+    assert "I cannot answer this as asked" in text and "Claude chat" in text
     assert "Nicht" not in text and "Keine" not in text
 
 
@@ -302,7 +308,7 @@ def test_short_lead_says_when_the_technical_picture_is_long(monkeypatch):
                              now=NOW).text
     lead = text.split("**Kurzantwort**")[1].split("\n\n")[0]
     assert "keine belegte Short-Empfehlung und aktuell auch kein Short-Signal " \
-        "(technisches Bild: Long, Score +38)" in lead
+        "(technisches Bild: technisch stark, Score +38)" in lead
     assert "Langfristig" in lead
 
 
@@ -311,7 +317,7 @@ def test_answer_shows_only_the_asked_horizons_and_points_to_the_rest(monkeypatch
     monkeypatch.setattr(A, "run_scan", _scan(
         [signal("AAA", 50.0)], [idea("AAA", "long", label="validated"), idea("AAA", "medium")],
         notes=[note("day", None)]))
-    text = K.answer_question("Soll ich AAA auf 3 Monate kaufen?", as_of_date=END, loader=loader,
+    text = K.answer_question("Soll ich AAA auf 1 Monat kaufen?", as_of_date=END, loader=loader,
                              now=NOW).text
     assert "Mittelfristig: nur Beobachtung" in text and "Langfristig: Empfehlung" not in text
     assert "Zu den kurzen Horizonten" not in text

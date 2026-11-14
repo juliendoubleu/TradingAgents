@@ -137,14 +137,14 @@ def test_statuses_comparison_order_and_conflict(patch_scan):
 
 
 @pytest.mark.unit
-def test_summary_names_the_stronger_name_and_says_no_recommendation(patch_scan):
+def test_summary_says_no_recommendation_and_does_not_rank_horizons_without_ideas(patch_scan):
     patch_scan(fake_scan([signal("NVDA", -18.0), signal("SAP.DE", 62.0)], []))
     # two universes: one scan each
     result = A.assess(["NVDA", "SAP.DE"], as_of_date=END, loader=loader, now=NOW)
     medium = next(s for s in result.summary_items if s.params["horizon"] == "medium")
     text = medium.text("de")
-    assert text.startswith("Mittelfristig: Für keinen der beiden Werte gibt es eine belegte "
-                           "Empfehlung; technisch ist SAP (SAP.DE) stärker (Score +62 gegen -18)")
+    # no idea on this horizon for either name: no ranking by the technical score
+    assert text == "Mittelfristig: Für keinen der beiden Werte gibt es eine belegte Empfehlung."
     assert "no evidenced recommendation for either of the two names" in str(medium)
 
 
