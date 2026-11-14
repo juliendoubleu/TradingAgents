@@ -603,9 +603,11 @@ def _regime_line(a: Assessment, lang: str) -> str:
 
 def legend(lang: str = "en") -> str:
     return _t(
-        "Belegt = im Test nach Kosten ein messbarer Vorteil · Schwach belegt = vorläufig, kann "
-        "Zufall sein · Nur relativ schwächer / Nur Marktrendite = kein eigener Vorteil · Nicht belegt "
-        "= kein messbarer Vorteil · Nicht untersucht = keine Messung. Der Score ist ein "
+        f"{label_name('validated', 'de')} = im Test nach Kosten ein messbarer Vorteil · "
+        f"{label_name('experimental', 'de')} = vorläufig, kann Zufall sein · "
+        f"{label_name('relative', 'de')} / {label_name('beta', 'de')} = kein eigener Vorteil · "
+        f"{label_name('unproven', 'de')} = kein messbarer Vorteil · "
+        f"{label_name('not_studied', 'de')} = keine Messung. Der Score ist ein "
         "technisches Bild, kein belegter Vorteil.",
         "Validated = a measurable edge after costs in the test · Weakly supported = "
         "preliminary, may be chance · Relatively weaker only / Market return only = no edge of its "
@@ -648,9 +650,11 @@ def render_body(a: Assessment, lang: str = "en",
 
 def legend_short(lang: str = "en") -> str:
     return _t(
-        "Belegt = messbarer Vorteil im Test nach Kosten · Schwach belegt = vorläufig, kann Zufall "
-        "sein · Nicht belegt = kein messbarer Vorteil · Nicht untersucht = keine Messung. Der "
-        "Score ist ein technisches Bild, kein Beleg.",
+        f"{label_name('validated', 'de')} = messbarer Vorteil im Test nach Kosten · "
+        f"{label_name('experimental', 'de')} = vorläufig, kann Zufall sein · "
+        f"{label_name('unproven', 'de')} = kein messbarer Vorteil · "
+        f"{label_name('not_studied', 'de')} = keine Messung. Der Score ist ein technisches Bild, "
+        "kein Beleg.",
         "Validated = measurable edge in the test after costs · Weakly supported = preliminary, "
         "may be chance · Not proven = no measurable edge · Not studied = no measurement. The "
         "score is a technical picture, not evidence.", lang)

@@ -86,7 +86,8 @@ worded "technisch stark" / "technisch schwach", never as Long/Short calls.
 
 ## Scheduled phone digest
 The digest is produced by `python -m cli.main scan --universe us,dax,global,crypto --digest --lang de --no-save`
-(one or several universes): it prints only the plain-text digest (headline of at most 180
+(one or several universes; `--tz` sets the zone of the title clock and weekend flag, default
+`Europe/Berlin`, any IANA name): it prints only the plain-text digest (headline of at most 180
 characters, blank line, body). A scheduled task's **final message must
 be that digest text unchanged**: no preamble, no rewriting, no extra commentary. If the command
 exits non-zero (no market could be scanned) its stdout is one line ("Markt-Scan fehlgeschlagen:

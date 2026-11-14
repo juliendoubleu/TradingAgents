@@ -325,3 +325,14 @@ def test_answer_shows_only_the_asked_horizons_and_points_to_the_rest(monkeypatch
     full = K.answer_question("AAA heute, kurzfristig, 3 Monate, 12 Monate", as_of_date=END,
                              loader=loader, now=NOW).text
     assert "Langfristig: Empfehlung Long" in full and "assess AAA" not in full
+
+
+@pytest.mark.unit
+def test_period_note_agrees_in_number():
+    for question, expected in (("Nvidia auf 1 Jahr kaufen?", "1 Jahr wurde nicht getestet"),
+                               ("Nvidia auf 12 Monate kaufen?", "12 Monate wurden nicht getestet"),
+                               ("Nvidia auf 3 Monate kaufen?", "3 Monate wurden nicht getestet")):
+        note = K._period_note(K.parse_question(question), "de")
+        assert note.startswith(expected), (question, note)
+    en = K._period_note(K.parse_question("Should I buy Nvidia for 1 year?"), "en")
+    assert en.startswith("1 year was not tested")

@@ -214,7 +214,7 @@ def test_sizes_are_explained_only_when_a_size_is_shown():
 def test_weekend_title_on_saturday_and_sunday_but_not_for_crypto_only():
     sat = datetime(2026, 11, 14, 10, 0)
     d = dg.build_digest(_watch_results(("us", "crypto")), "de", now=sat)
-    assert "Sa 14.11.2026 10:00 · Wochenende – Börsen geschlossen" in d.body.split("\n")[0]
+    assert "Sa 14.11.2026 11:00 MEZ · Wochenende – Börsen geschlossen" in d.body.split("\n")[0]
     sun = dg.build_digest(_watch_results(("us",)), "de", now=datetime(2026, 11, 15, 9, 0))
     assert "Wochenende – Börsen geschlossen" in sun.body.split("\n")[0]
     crypto = dg.build_digest(_watch_results(("crypto",)), "de", now=sat)

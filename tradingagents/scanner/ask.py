@@ -256,14 +256,17 @@ def _period_note(p: ParsedQuestion, lang: str) -> str:
     if m is None or p.period_text is None:
         return ""
     asked = p.period_text
+    lead = re.match(r"\s*(\d+(?:[.,]\d+)?)", asked)
+    one = bool(lead) and float(lead.group(1).replace(",", ".")) == 1.0
+    wurde, was = ("wurde", "was") if one else ("wurden", "were")
     if 1.25 < m < 4.5:
-        return _t(f"{asked} wurden nicht getestet; die Studien messen etwa 1 Monat "
+        return _t(f"{asked} {wurde} nicht getestet; die Studien messen etwa 1 Monat "
                   "(mittelfristig) und etwa 6 Monate (langfristig)",
-                  f"{asked} were not tested; the studies measure about 1 month (medium term) "
+                  f"{asked} {was} not tested; the studies measure about 1 month (medium term) "
                   "and about 6 months (long term)", lang)
     if m >= 9.5:
-        return _t(f"{asked} wurden nicht getestet; die längste gemessene Haltedauer beträgt "
-                  "etwa 6 Monate", f"{asked} were not tested; the longest measured holding "
+        return _t(f"{asked} {wurde} nicht getestet; die längste gemessene Haltedauer beträgt "
+                  "etwa 6 Monate", f"{asked} {was} not tested; the longest measured holding "
                   "period is about 6 months", lang)
     return ""
 

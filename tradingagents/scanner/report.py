@@ -234,17 +234,19 @@ _T = {
         "relative_strength": ("relative strength", "relative Stärke"), "macd": ("MACD", "MACD"),
         "rsi_guard": ("RSI guard", "RSI-Filter"), "volume": ("volume", "Volumen"),
     },
+    "disclaimer_sizes": (
+        "Position sizes are per trade and do not add up: cap your total exposure yourself.",
+        "Positionsgrößen gelten je Trade und addieren sich nicht: begrenze dein "
+        "Gesamtengagement selbst."),
     "disclaimer_h": ("Disclaimer", "Haftungsausschluss"),
     "disclaimer": (
         "This is a research tool, not investment advice. The signals are rule-based and "
         "derived from past prices only; they do not know about news, earnings or events. "
-        "Position sizes are per trade and do not add up: cap your total exposure yourself. "
         "Short positions can lose more than the stake, in theory without limit. Stops can be "
         "gapped through. Check any idea yourself before acting on it.",
         "Dies ist ein Recherchewerkzeug und keine Anlageberatung. Die Signale sind regelbasiert "
         "und nur aus vergangenen Kursen abgeleitet; Nachrichten, Quartalszahlen oder Ereignisse "
-        "kennt das Verfahren nicht. Positionsgrößen gelten je Trade und addieren sich nicht: "
-        "begrenze dein Gesamtengagement selbst. Short-Positionen können mehr als den Einsatz "
+        "kennt das Verfahren nicht. Short-Positionen können mehr als den Einsatz "
         "kosten, theoretisch ohne Grenze. Stops können durch Kurslücken übersprungen werden. "
         "Prüfe jede Idee selbst, bevor du handelst."),
 }
@@ -770,7 +772,10 @@ def build_blocks(
         mid=fmt_num(CONVICTION_MEDIUM, 0, lang), stop=fmt_num(STOP_ATR, 0, lang),
         target=fmt_num(TARGET_ATR, 0, lang))))
     blocks.append(("h2", _t("disclaimer_h", lang)))
-    blocks.append(("p", _t("disclaimer", lang)))
+    text = _t("disclaimer", lang)
+    if any_size(horizon_views(result, keys)):
+        text += " " + _t("disclaimer_sizes", lang)
+    blocks.append(("p", text))
     return blocks
 
 

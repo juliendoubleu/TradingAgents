@@ -486,7 +486,13 @@ def _before_after(study: Study, before: dict) -> list[str]:
             LABEL_DE[o_label] if o_label == n_label else f"{LABEL_DE[o_label]} → {LABEL_DE[n_label]}",
         ])
     out = [_table(["ID", "OOS Trades", "OOS Ø je Trade (bp)", "OOS " + DAILY_HEADER + " (bp)",
-                   "IS t", "OOS t", "Urteil (vorab festgelegt)", "Etikett"], rows)]
+                   "IS t", "OOS t", "Formales Urteil nach der vorab festgelegten Regel",
+                   "Kennzeichnung im Programm"], rows)]
+    out.append("\nDie Spalte „Formales Urteil“ zeigt nur, ob die vorab festgelegten Kriterien "
+               "erfüllt sind; „belegt“ dort ist keine Empfehlung. Maßgeblich ist die Spalte "
+               "„Kennzeichnung im Programm“: Eine Regel, die die Marktdrift nicht schlägt, "
+               "erscheint dort als „formal bestanden, aber nur Marktrendite“, und keine Variante "
+               "ist belegt.")
     out.append("\nFett = Zeile hat sich geändert (Trade-Zahl, IS-t, OOS-t, Urteil oder Etikett). "
                "„Vorher“ ist der Stand vor der Korrektur (Datei `validated_before_review.json`). "
                "Bei „vorher“ war „Ø je Handelstag“ der Mittelwert der Tages-Cluster nach "
@@ -688,7 +694,9 @@ def write_report(study: Study, path: str | Path, before: dict | None = None) -> 
     L.append("\n## 7. Grenzen")
     L.append(
         "- **Survivorship-Bias:** Das Universum sind die heutigen Large Caps, rückwirkend "
-        "angewandt; Verlierer von gestern fehlen. Das begünstigt vor allem Long-Regeln.\n"
+        "angewandt; Verlierer von gestern fehlen. Das begünstigt Long-Regeln und lässt "
+ "Short-Ergebnisse eher zu schlecht aussehen (die Werte, auf deren Fall ein Short gesetzt hätte, "
+ "fehlen).\n"
         "- **Dividendenbereinigung (Datenfehler H-1, korrigiert):** Yahoo bereinigt Tagesbalken um "
         "Dividenden, Intraday-Balken nicht. Die erste Fassung verglich den (bereinigten) "
         "Tagesschlusskurs mit unbereinigten Intraday-Kursen; der „vorherige Schlusskurs“ lag zu "
@@ -707,7 +715,8 @@ def write_report(study: Study, path: str | Path, before: dict | None = None) -> 
         f"Symbol-Tagen vollständig; 5 Min.: {inv['5m']['complete_symbol_sessions']} von "
         f"{inv['5m']['symbol_sessions']}).\n"
         "- **Keine Leerverkaufskosten:** Leihgebühren, Verfügbarkeit und Short-Squeezes sind nicht "
-        "modelliert; Short-Ergebnisse sind deshalb eher zu gut als zu schlecht.\n"
+        "modelliert; das lässt Short-Ergebnisse eher zu gut aussehen, also in die "
+        "entgegengesetzte Richtung wie der Survivorship-Bias.\n"
         "- **Kleine 5-Minuten-Stichprobe:** nur etwa 43 Handelstage; Ergebnisse sind Anekdoten, "
         "kein Beweis.\n"
         "- **Gap-Strategien auf Tagesbalken** (D1/D2) setzen voraus, dass man zum "

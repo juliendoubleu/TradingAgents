@@ -984,6 +984,20 @@ def _f(x, nd=1) -> str:
     return fmt_num(x, nd, "de")
 
 
+def _info_only_note(info: list[dict], min_t: float) -> str:
+    """The sentence under the robustness table about cells that had failed on the corrected
+    statistic already; built from the plain pooled t without the removed names, never fixed text."""
+    ts = ", ".join(_f(r["robustness"]["pooled_t"]) for r in info)
+    below = sum(1 for r in info if r["robustness"]["pooled_t"] < min_t)
+    where = ("liegt unter" if below == len(info) else
+             "bleibt oberhalb" if below == 0 else "liegt teils unter, teils oberhalb")
+    return ("Die Zellen mit dem Vermerk \"frühere Regel\" waren schon an der korrigierten "
+            "Statistik gescheitert (getrenntes t im In-Sample- bzw. Out-of-Sample-Teil unter der "
+            f"Schwelle). Das einfache gepoolte t ohne sie (Spalte \"Gepoolt ohne sie\": {ts}) "
+            f"{where} der Schwelle von {_f(min_t)}; die Zahlen stehen so in der Tabelle. Ohne die "
+            "drei Aktien bleibt im Auswahlzeitraum kaum ein Vorsprung (Spalte \"t ohne sie\").")
+
+
 def _pct(x, nd=1) -> str:
     return "-" if x is None else _f(x * 100, nd) + " %"
 
@@ -1308,14 +1322,8 @@ def write_report(snapshot: dict, path: str | Path, before: dict | None = None) -
         w(_table(["Zelle", "Entfernt", "Gepoolt vorher", "Gepoolt ohne sie", "t ohne sie (IS / OOS)",
                   "Urteil vor Prüfung", "Urteil danach"], rows))
         if any(r["robustness"].get("info_only") for r in checked):
-            w("\nDie Zellen mit dem Vermerk \"frühere Regel\" waren schon an der korrigierten "
-              "Statistik gescheitert (getrenntes t im In-Sample- bzw. Out-of-Sample-Teil unter der "
-              "Schwelle); die Robustheitsprüfung hätte sie für sich allein nur herabgesetzt, wenn "
-              "das gepoolte t unter 2 fällt. Mit dem einfachen t bleibt es oberhalb (Spalte "
-              "\"Gepoolt ohne sie\"), mit dem Newey-West-t der Prüfung darunter oder knapp "
-              "darauf: das gepoolte t allein ist ein schwächeres Kriterium als die getrennte "
-              "Prüfung beider Abschnitte. Ohne die drei Aktien bleibt im Auswahlzeitraum kaum "
-              "ein Vorsprung (Spalte \"t ohne sie\").")
+            w("\n" + _info_only_note([r for r in checked if r["robustness"].get("info_only")],
+                                    th["robust_min_t"]))
     else:
         w("Keine Zelle erreichte vor dieser Prüfung ein Urteil von \"schwach belegt\" oder besser; "
           "es gab daher nichts zu prüfen.")
@@ -1456,10 +1464,11 @@ def write_report(snapshot: dict, path: str | Path, before: dict | None = None) -
         "Tage zwischen zwei Haltefenstern (Bargeld) sind nicht abgebildet.",
         "**Survivorship-Bias**: Es werden die heutigen Mitglieder der Listen rückwirkend "
         "getestet. Firmen, die zwischenzeitlich schwach waren, ausschieden oder pleitegingen, "
-        "fehlen. Das begünstigt vor allem Long-Regeln und verzerrt Short-Ergebnisse zum "
-        "Schlechteren (Verlierer fehlen).",
+        "fehlen. Das begünstigt Long-Regeln und lässt Short-Ergebnisse eher zu schlecht "
+        "aussehen (die Verlierer fehlen).",
         "**Keine Leihgebühren und Dividendenkosten** bei Shorts; reale Shorts sind teurer und "
-        "teils nicht möglich. Kostenannahmen sind pauschal (10 bp bzw. 30 bp je Hin- und Rückweg), "
+        "teils nicht möglich, das lässt Short-Ergebnisse eher zu gut aussehen, also in die "
+        "entgegengesetzte Richtung wie der Survivorship-Bias. Kostenannahmen sind pauschal (10 bp bzw. 30 bp je Hin- und Rückweg), "
         "ohne Abwägung von Spreads in schwachen Märkten oder Steuern.",
         "**Eine einzige Out-of-Sample-Periode** (die letzten 30 % der Termine): sie ist ein "
         "einzelnes Marktumfeld. Ein Bestehen belegt nicht, dass die Regel in anderen Umfeldern "
@@ -1491,8 +1500,21 @@ def main(argv: list[str] | None = None) -> int:
                         help="also overwrite the packaged evidence.json the live scan reads")
     parser.add_argument("--explore", action="store_true",
                         help="in-sample only: print the IS table, write nothing")
+    parser.add_argument("--report-only", action="store_true",
+                        help="regenerate the report from <out>/evidence.json (or the packaged "
+                             "snapshot if absent) without running the study")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO)
+    if args.report_only:
+        out = Path(args.out)
+        snap_file = out / SNAPSHOT_NAME
+        snapshot = json.loads((snap_file if snap_file.exists() else Path(SNAPSHOT_PATH))
+                              .read_text(encoding="utf-8"))
+        before_path = Path(args.before) if args.before else out / "evidence_before_review.json"
+        before = load_snapshot(before_path) if before_path.exists() else None
+        report = write_report(snapshot, out / "BERICHT_Mittel_Lang.md", before)
+        print(f"report: {report}")
+        return 0
     as_of = args.as_of or datetime.now(UTC).strftime("%Y-%m-%d")
     fams = args.families.split(",") if args.families else None
     study = run_study(as_of, args.cache, fams, include_oos=not args.explore,

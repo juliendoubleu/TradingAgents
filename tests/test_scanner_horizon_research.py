@@ -510,3 +510,14 @@ def test_chance_rates_are_deterministic_and_the_report_corrects_the_multiple_tes
     assert "nach einer unabhängigen Prüfung korrigiert" in text and "verschiedene Messungen" in text
     assert "Schwellen" in text and "EXPERIMENTAL_MIN_OOS_DATES" in text and "MIN_BASKET" in text
     assert "Stop-Modus" in text and "Rückgang auf Tageskursen" in text
+
+
+@pytest.mark.unit
+def test_the_robustness_note_follows_the_actual_pooled_t():
+    def cell(t):
+        return {"robustness": {"pooled_t": t}}
+    below = hr._info_only_note([cell(1.4), cell(1.6)], 2.0)
+    assert "1,4, 1,6" in below and "liegt unter der Schwelle von 2,0" in below
+    above = hr._info_only_note([cell(2.3)], 2.0)
+    assert "bleibt oberhalb der Schwelle von 2,0" in above and "2,3" in above
+    assert "teils unter, teils oberhalb" in hr._info_only_note([cell(1.4), cell(2.3)], 2.0)

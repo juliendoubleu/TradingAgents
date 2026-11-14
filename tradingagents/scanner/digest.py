@@ -14,11 +14,12 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
 from tradingagents.scanner.fmt import fmt_date, fmt_num, fmt_price
 from tradingagents.scanner.horizons import holding_text
+from tradingagents.scanner.notices import label_name
 from tradingagents.scanner.regime import LABELS as REGIME_LABELS
 from tradingagents.scanner.report import (
     SIDES,
@@ -57,7 +58,8 @@ _X = {
                       "Ideen nicht verfügbar, keine Empfehlung"),
     "watch": ("Watch (not proven)", "Beobachten (nicht belegt)"),
     "strong": ("strong", "stark"), "weak": ("weak", "schwach"),
-    "avoid": ("Avoid / underweight (relative evidence)", "Meiden / untergewichten (relativ belegt)"),
+    "avoid": (f"Avoid / underweight ({label_name('relative', 'en')})",
+              f"Meiden / untergewichten ({label_name('relative', 'de')})"),
     "weak_now": ("currently technically weak", "aktuell technisch schwach"),
     "strong_now": ("currently technically strong", "aktuell technisch stark"),
     "foot_labels": (
@@ -221,19 +223,33 @@ def _market_lines(result: ScanResult, lang: str, max_per_side: int, watch: bool,
     return lines
 
 
-def _is_weekend(now: datetime) -> bool:
-    """Saturday or Sunday in Europe/Berlin (a naive ``now`` is taken as Berlin time)."""
-    if now.tzinfo is not None:
-        now = now.astimezone(ZoneInfo("Europe/Berlin"))
-    return now.weekday() >= 5
+DEFAULT_TZ = "Europe/Berlin"
+_ZONE_DE = {"CET": "MEZ", "CEST": "MESZ"}
 
 
-def _title(results: list[ScanResult], lang: str, now: datetime, newest: str) -> str:
-    """``Fr 13.11.2026 17:52 · Kurse bis 12.11.2026``; when the markets' newest bars differ
+def _local(now: datetime, tz: str) -> datetime:
+    """``now`` in the zone ``tz`` (a naive ``now`` is taken as UTC)."""
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=UTC)
+    return now.astimezone(ZoneInfo(tz))
+
+
+def _is_weekend(local: datetime) -> bool:
+    """Saturday or Sunday on the already localised clock."""
+    return local.weekday() >= 5
+
+
+def _title(results: list[ScanResult], lang: str, now: datetime, newest: str,
+           tz: str = DEFAULT_TZ) -> str:
+    """``Fr 13.11.2026 17:52 MEZ · Kurse bis 12.11.2026`` (the clock in zone ``tz``); when the markets' newest bars differ
     (a closed exchange, a holiday) the range ``Kurse bis 11.11.2026–12.11.2026``."""
-    weekday = _WEEKDAY[lang][now.weekday()]
-    stamp = f"{weekday} {fmt_date(now.date(), lang)} {now.strftime('%H:%M')}"
-    if _is_weekend(now) and any(r.universe != "crypto" for r in results):
+    local = _local(now, tz)
+    abbr = local.strftime("%Z")
+    if lang == "de":
+        abbr = _ZONE_DE.get(abbr, abbr)
+    weekday = _WEEKDAY[lang][local.weekday()]
+    stamp = f"{weekday} {fmt_date(local.date(), lang)} {local.strftime('%H:%M')} {abbr}"
+    if _is_weekend(local) and any(r.universe != "crypto" for r in results):
         stamp += f" · {_x('weekend', lang)}"
     dates = sorted({r.as_of_date for r in results if r.as_of_date})
     if len(dates) > 1:
@@ -257,9 +273,9 @@ def _any_size(results: list[ScanResult], max_per_side: int, horizons) -> bool:
 
 
 def _body(results: list[ScanResult], lang: str, max_per_side: int, watch: bool, now: datetime,
-          horizons) -> str:
+          horizons, tz: str = DEFAULT_TZ) -> str:
     newest = max((r.as_of_date for r in results if r.as_of_date), default="")
-    blocks = [_title(results, lang, now, newest)]
+    blocks = [_title(results, lang, now, newest, tz)]
     for result in results:
         blocks.append("\n".join(_market_lines(result, lang, max_per_side, watch, newest,
                                               horizons)))
@@ -340,22 +356,25 @@ def build_digest(
     max_per_side: int = 3,
     now: datetime | None = None,
     horizons: Iterable[str] | None = None,
+    tz: str = DEFAULT_TZ,
 ) -> Digest:
     """Headline and body for ``results`` (one per market).
 
-    ``now`` is the clock shown in the title (default: the current local time), so the same
-    input and ``now`` always give the same text. The body stays within ``BODY_MAX``
+    ``now`` is the clock shown in the title (aware, or naive meaning UTC; default: the current
+    time), shown in the IANA zone ``tz`` (default Europe/Berlin, which also decides the weekend
+    flag), so the same input, ``now`` and ``tz`` always give the same text. The body stays within ``BODY_MAX``
     characters: first the watch lines go, then the number of ideas per side shrinks to one,
     and only as a last resort the text is cut. ``horizons`` filters like ``scan --horizon``.
     """
     lang = "de" if lang == "de" else "en"
-    now = now or datetime.now()
+    now = now or datetime.now(UTC)
+    ZoneInfo(tz)                      # an unknown zone fails here, not halfway through
     horizons = tuple(horizons) if horizons else None
     body = ""
     attempts = [(max_per_side, True), (max_per_side, False)]
     attempts += [(n, False) for n in range(max_per_side - 1, 0, -1)]
     for count, watch in attempts:
-        body = _body(results, lang, max(1, count), watch, now, horizons)
+        body = _body(results, lang, max(1, count), watch, now, horizons, tz)
         if len(body) <= BODY_MAX:
             break
     else:

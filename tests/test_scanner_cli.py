@@ -53,8 +53,9 @@ def test_scan_prints_regime_horizons_watch_list_and_never_runs_the_interactive_f
     assert calls == []
     for text in ("Market regime", "Recommendations by investment horizon", "Long term",
                  "Day trade", "Technical picture (not evidenced)", "UP2", "DN2", "How solid is this?",
-                 "Saved:", "not investment advice", "do not add up"):
+                 "Saved:", "not investment advice"):
         assert text in res.output, text
+    assert "do not add up" not in res.output          # no idea shows a size, so no sizing line
     out = tmp_path / "scans" / f"us-custom_{END}"
     assert (out / "scan.md").exists() and (out / "scan.html").exists()
     assert (out / "digest.txt").exists()

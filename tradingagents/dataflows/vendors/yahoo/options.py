@@ -85,14 +85,16 @@ def _oi(row) -> int | None:
     return int(v) if v is not None else None
 
 
-def _spot(ticker) -> float | None:
+def _spot(symbol: str) -> float | None:
+    """Last price; each Yahoo call gets its own Ticker (one whose fast_info failed makes the
+    next history() raise TypeError, which would read as an outage instead of an unknown symbol)."""
     try:
-        price = _num(ticker.fast_info["lastPrice"])
+        price = _num(yf.Ticker(symbol).fast_info["lastPrice"])
     except Exception:
         price = None
     if price is not None and price > 0:
         return price
-    hist = ticker.history(period="5d", auto_adjust=False)
+    hist = yf.Ticker(symbol).history(period="5d", auto_adjust=False)
     if hist is None or hist.empty or "Close" not in hist:
         return None
     closes = hist["Close"].dropna()
@@ -111,10 +113,10 @@ def load_implied_moves(symbol: str, max_expiries: int = 4,
     ``now`` (UTC) makes the clock injectable for tests.
     """
     canonical = normalize_symbol(symbol)
-    ticker = yf.Ticker(canonical)
-    expiries = yf_retry(lambda: ticker.options)
+    # a fresh Ticker per attempt: one whose fetch failed keeps a broken state (see yf_retry)
+    expiries = yf_retry(lambda: yf.Ticker(canonical).options)
     if not expiries:
-        if yf_retry(lambda: _spot(ticker)) is None:
+        if yf_retry(lambda: _spot(canonical)) is None:
             raise NoMarketDataError(symbol, canonical, "no price history")
         return []
     now_ny = (now or datetime.now(UTC)).astimezone(_NY)
@@ -128,13 +130,13 @@ def load_implied_moves(symbol: str, max_expiries: int = 4,
     upcoming = [e for e in expiries if alive(e)][:max(0, max_expiries)]
     if not upcoming:
         return []
-    spot = yf_retry(lambda: _spot(ticker))
+    spot = yf_retry(lambda: _spot(canonical))
     if spot is None or spot <= 0:
         raise VendorUnavailableError(f"Yahoo Finance returned no price for {canonical}")
 
     out: list[ImpliedMove] = []
     for expiry in upcoming:
-        chain = yf_retry(lambda expiry=expiry: ticker.option_chain(expiry))
+        chain = yf_retry(lambda expiry=expiry: yf.Ticker(canonical).option_chain(expiry))
         if chain is None:
             continue
         calls = chain.calls.set_index("strike", drop=False)

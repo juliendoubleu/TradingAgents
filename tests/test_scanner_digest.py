@@ -32,7 +32,7 @@ def _four(evidenced=True):
 def test_signature_and_dataclass_shape():
     import inspect
     sig = inspect.signature(dg.build_digest)
-    assert list(sig.parameters) == ["results", "lang", "max_per_side", "now", "horizons"]
+    assert list(sig.parameters) == ["results", "lang", "max_per_side", "now", "horizons", "tz"]
     assert sig.parameters["lang"].default == "de" and sig.parameters["max_per_side"].default == 3
     d = dg.build_digest([evidenced_result()], now=NOW)
     assert d.text == f"{d.headline}\n\n{d.body}"
@@ -54,7 +54,7 @@ def test_german_recommendation_lines_follow_the_plan_format():
     d = dg.build_digest([evidenced_result()], "de", now=NOW)
     assert ("LONG UP2 · Einstieg nächste Eröffnung (Ref. 354,88) · Stop 321,34 · max. 8,5 % "
             "· Belegt") in d.body
-    assert d.body.startswith("Fr 13.11.2026 16:05 · Kurse bis 30.06.2025")
+    assert d.body.startswith("Fr 13.11.2026 17:05 MEZ · Kurse bis 30.06.2025")
     assert d.body.rstrip().endswith("Keine Anlageberatung.")
     assert "addieren sich nicht" in d.body
     # a merged line never leaves it open which side a horizon name stands for
@@ -85,7 +85,7 @@ def test_watch_names_are_labelled_not_proven_and_avoid_is_not_a_short():
     d = dg.build_digest([result], "de", now=NOW)
     assert ("Keine belegte Empfehlung. Technisches Bild (nicht belegt): stark UP2" in d.body
             and "schwach DN2" in d.body)
-    assert "Meiden / untergewichten (relativ belegt): AVO" in d.body
+    assert "Meiden / untergewichten (Nur relativ schwächer): AVO" in d.body
     assert "SHORT AVO" not in d.body and d.headline.startswith("Keine belegte Empfehlung")
 
 
@@ -137,7 +137,7 @@ def test_deterministic_for_the_same_input_and_now():
 @pytest.mark.unit
 def test_english_digest_has_no_german_and_german_has_no_english():
     en = dg.build_digest(_four(), "en", now=NOW)
-    assert en.body.startswith("Fri 2026-11-13 16:05 · prices up to 2025-06-30")
+    assert en.body.startswith("Fri 2026-11-13 17:05 CET · prices up to 2025-06-30")
     for word in ("Einstieg", "Keine Anlageberatung", "Beobachten", "Regeln", "Empfehlung"):
         assert word not in en.body + en.headline
     de = dg.build_digest(_four(), "de", now=NOW)
@@ -157,3 +157,21 @@ def test_horizon_filter_and_missing_idea_layer():
     d = dg.build_digest([result], "de", now=NOW)
     assert "Ideen nicht verfügbar, keine Empfehlung" in d.body
     assert dg.build_digest([], "de", now=NOW).headline == "Kein Scan-Ergebnis"
+
+
+@pytest.mark.unit
+def test_the_clock_is_shown_and_judged_in_the_requested_zone():
+    from datetime import UTC
+    # Friday 23:30 UTC is already Saturday 00:30 in Berlin: the weekend flag follows Berlin
+    fri_utc = datetime(2026, 11, 13, 23, 30, tzinfo=UTC)
+    first = dg.build_digest(_four(), "de", now=fri_utc).body.split("\n")[0]
+    assert first.startswith("Sa 14.11.2026 00:30 MEZ") and "Wochenende" in first
+    # a naive now is UTC
+    naive = dg.build_digest(_four(), "de", now=datetime(2026, 11, 13, 23, 30)).body.split("\n")[0]
+    assert naive.startswith("Sa 14.11.2026 00:30 MEZ")
+    # summer time
+    summer = dg.build_digest(_four(), "de", now=datetime(2026, 7, 15, 12, 0, tzinfo=UTC))
+    assert summer.body.startswith("Mi 15.07.2026 14:00 MESZ")
+    # another zone: the same instant is still Friday evening in New York
+    ny = dg.build_digest(_four(), "de", now=fri_utc, tz="America/New_York").body.split("\n")[0]
+    assert ny.startswith("Fr 13.11.2026 18:30 EST") and "Wochenende" not in ny

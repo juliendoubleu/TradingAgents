@@ -179,3 +179,40 @@ def test_to_dict_roundtrips(patch_ticker):
     (m,) = opt.load_implied_moves("TTWO", now=_NOW)
     d = m.to_dict()
     assert d["symbol"] == "TTWO" and d["stale"] is False
+
+
+@pytest.mark.unit
+def test_every_yahoo_call_builds_its_own_ticker(monkeypatch):
+    """A Ticker whose options fetch came back empty raises TypeError on history(): reusing it
+    would turn an unknown symbol into 'Yahoo unavailable'."""
+    from tradingagents.dataflows.errors import NoMarketDataError
+
+    class Poisoned:
+        def __init__(self):
+            self.used = False
+
+        @property
+        def fast_info(self):
+            self.used = True
+            raise KeyError("currentTradingPeriod")
+
+        @property
+        def options(self):
+            self.used = True
+            return ()
+
+        def history(self, **kw):
+            if self.used:
+                raise TypeError("'NoneType' object is not subscriptable")
+            return pd.DataFrame()
+
+    built = []
+
+    def make(symbol):
+        built.append(Poisoned())
+        return built[-1]
+    monkeypatch.setattr(opt.yf, "Ticker", make)
+    monkeypatch.setattr("tradingagents.dataflows.vendors.yahoo.common.time.sleep", lambda s: None)
+    with pytest.raises(NoMarketDataError):
+        opt.load_implied_moves("XXXXQQ", now=_NOW)
+    assert len(built) >= 2

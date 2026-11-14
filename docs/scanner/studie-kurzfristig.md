@@ -168,10 +168,10 @@ Keine der 24 getesteten Varianten ist belegt: Keine erfüllt die vorab festgeleg
 Signifikant **negativ** (IS-t ≤ −2 und OOS-t ≤ −2) sind: D1 (t IS -2,07, OOS -2,11, gesamt -2,85; Ø brutto je Trade IS -3,7 bp, OOS 4,2 bp); H1 (t IS -8,46, OOS -7,21, gesamt -10,51; Ø brutto je Trade IS -1,1 bp, OOS 0,3 bp); H1b (t IS -3,47, OOS -2,75, gesamt -4,22; Ø brutto je Trade IS -2,9 bp, OOS -0,5 bp); H2 (t IS -3,30, OOS -5,09, gesamt -5,00; Ø brutto je Trade IS 0,7 bp, OOS -3,3 bp); M3 (t IS -2,35, OOS -2,07, gesamt -3,02; Ø brutto je Trade IS -0,8 bp, OOS -0,9 bp). Das ist überwiegend die Kostenwirkung und keine nachgewiesene Gegenrichtung: vor Kosten liegt der Ø brutto je Trade bei diesen Regeln nahe null (zwischen -3,7 und 4,2 bp), die Kosten (5 bp je Daytrade, 10 bp je Swing-Trade) machen das Ergebnis erst signifikant negativ. Die Umkehrung der Signale wäre deshalb kein Gewinn: auch die Gegenrichtung zahlt die Kosten.
 
 ## 7. Grenzen
-- **Survivorship-Bias:** Das Universum sind die heutigen Large Caps, rückwirkend angewandt; Verlierer von gestern fehlen. Das begünstigt vor allem Long-Regeln.
+- **Survivorship-Bias:** Das Universum sind die heutigen Large Caps, rückwirkend angewandt; Verlierer von gestern fehlen. Das begünstigt Long-Regeln und lässt Short-Ergebnisse eher zu schlecht aussehen (die Werte, auf deren Fall ein Short gesetzt hätte, fehlen).
 - **Dividendenbereinigung (Datenfehler H-1, korrigiert):** Yahoo bereinigt Tagesbalken um Dividenden, Intraday-Balken nicht. Die erste Fassung verglich den (bereinigten) Tagesschlusskurs mit unbereinigten Intraday-Kursen; der „vorherige Schlusskurs“ lag zu Beginn des 60-Minuten-Fensters um bis zu 12 % zu niedrig (Median 370 bp in den ersten 20 Tagen), was H1/H1b fast immer auf „Long“ stellte und M2a/M2b verfälschte. Jetzt kommt der vorherige Schlusskurs aus dem letzten Intraday-Balken der Vorsitzung (gleiche Quelle, gleiche Bereinigung); Symbol-Tage ohne vorherige Intraday-Sitzung entfallen, ebenso solche, deren Vorsitzung nicht mit dem Schlussbalken endet (fehlender letzter Balken, 325 Symbol-Tage im 60-Minuten-Datensatz), weil deren letzter Kurs nicht der Schlusskurs ist. Restrisiko: Die Intraday-Daten enthalten Dividenden-Abschläge als echte Kurslücken (wie im realen Handel); Trendflags und ATR% stammen weiter aus bereinigten Tagesbalken (Verhältniszahlen, davon kaum berührt).
 - **Yahoo-Datenqualität intraday:** fehlende Balken, Halbtage und gelegentliche Ausreißer; unvollständige Handelstage wurden ausgelassen (60 Min.: 32045 von 32500 Symbol-Tagen vollständig; 5 Min.: 2790 von 2795).
-- **Keine Leerverkaufskosten:** Leihgebühren, Verfügbarkeit und Short-Squeezes sind nicht modelliert; Short-Ergebnisse sind deshalb eher zu gut als zu schlecht.
+- **Keine Leerverkaufskosten:** Leihgebühren, Verfügbarkeit und Short-Squeezes sind nicht modelliert; das lässt Short-Ergebnisse eher zu gut aussehen, also in die entgegengesetzte Richtung wie der Survivorship-Bias.
 - **Kleine 5-Minuten-Stichprobe:** nur etwa 43 Handelstage; Ergebnisse sind Anekdoten, kein Beweis.
 - **Gap-Strategien auf Tagesbalken** (D1/D2) setzen voraus, dass man zum Eröffnungskurs handeln kann, den man erst kennt, wenn er entsteht; M2a/M2b prüfen das realistischer.
 - **Swing-Trades überlappen:** Die Auswertung läuft deshalb auf dem Kalenderzeit-Portfolio (Abschnitt 1) statt auf Einstiegstagen. Auch die Tageswerte dieses Portfolios sind untereinander noch verwandt (Positionen laufen mehrere Tage); die t-Werte bleiben eher optimistisch. S1 verlässt die Position zum Schlusskurs, den man erst am Ende des Tages kennt.
@@ -191,7 +191,7 @@ Eine unabhängige Prüfung hat die Zahlen der ersten Fassung nachgerechnet, die 
 - **M-2 eine Größe:** Kostenbedingung und Marktdrift-Kriterium verwenden den Mittelwert derselben Reihe wie der t-Wert; „Ø je Trade“ bleibt als Information.
 - Kleinere Punkte: Beschreibung der Baselines, Drawdown auf zusammengesetzter Kurve, Zählung des Universums, Wortlaut zu den signifikant negativen Regeln und zu den Variantenbegründungen, Alterskontrollen der Live-Ideen.
 
-| ID | OOS Trades | OOS Ø je Trade (bp) | OOS Ø je Handelstag (Basis des t-Werts) (bp) | IS t | OOS t | Urteil (vorab festgelegt) | Etikett |
+| ID | OOS Trades | OOS Ø je Trade (bp) | OOS Ø je Handelstag (Basis des t-Werts) (bp) | IS t | OOS t | Formales Urteil nach der vorab festgelegten Regel | Kennzeichnung im Programm |
 |---|---|---|---|---|---|---|---|
 | D1 | 6.890 | -0,8 | -7,2 | -2,07 | -2,11 | verworfen | verworfen |
 | D2 | 617 | -13,9 | -25,0 | -0,67 | -1,91 | verworfen | verworfen |
@@ -217,6 +217,8 @@ Eine unabhängige Prüfung hat die Zahlen der ersten Fassung nachgerechnet, die 
 | **S1v** | 1.477 | 1,3 | -12,3 → -0,3 | -0,77 → -0,12 | -0,99 → -0,07 | verworfen | verworfen |
 | D5v | 1.241 | -4,2 | 2,0 | -0,03 | 0,31 | verworfen | verworfen |
 | H3x | 14 | -28,8 | -26,6 | -0,54 | -1,29 | verworfen | verworfen |
+
+Die Spalte „Formales Urteil“ zeigt nur, ob die vorab festgelegten Kriterien erfüllt sind; „belegt“ dort ist keine Empfehlung. Maßgeblich ist die Spalte „Kennzeichnung im Programm“: Eine Regel, die die Marktdrift nicht schlägt, erscheint dort als „formal bestanden, aber nur Marktrendite“, und keine Variante ist belegt.
 
 Fett = Zeile hat sich geändert (Trade-Zahl, IS-t, OOS-t, Urteil oder Etikett). „Vorher“ ist der Stand vor der Korrektur (Datei `validated_before_review.json`). Bei „vorher“ war „Ø je Handelstag“ der Mittelwert der Tages-Cluster nach Einstiegstag, „nachher“ derselbe Wert (Tagestrader) bzw. der des Kalenderzeit-Portfolios (Swing).
 

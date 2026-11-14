@@ -186,10 +186,12 @@ _CLI = {
     "agent_failed": ("{sym} failed: {err}", "{sym} fehlgeschlagen: {err}"),
     "saved": ("Saved:", "Gespeichert:"),
     "disclaimer": (
-        "Research tool, not investment advice. Sizes are per trade and do not add up. "
-        "Shorts can lose more than the stake.",
-        "Recherchewerkzeug, keine Anlageberatung. Größen gelten je Trade und addieren sich nicht. "
-        "Shorts können mehr als den Einsatz kosten."),
+        "Research tool, not investment advice. Shorts can lose more than the stake.",
+        "Recherchewerkzeug, keine Anlageberatung. Shorts können mehr als den Einsatz kosten."),
+    "disclaimer_sizes": ("Sizes are per trade and do not add up.",
+                         "Größen gelten je Trade und addieren sich nicht."),
+    "err_tz": ("unknown time zone {tz!r}; use an IANA name such as Europe/Berlin",
+               "unbekannte Zeitzone {tz!r}; nutze einen IANA-Namen wie Europe/Berlin"),
     "err_horizon": ("unknown horizon {h!r}; choose from: {valid}",
                     "unbekannter Horizont {h!r}; wähle aus: {valid}"),
     "err_universe": ("unknown universe {u!r}; choose one of: {valid}",
@@ -402,6 +404,8 @@ def scan(
                               help="Write scan.md, scan.html, scan.json, digest.txt"),
     lang: str = typer.Option(None, "--lang", help="Report language, en or de"),
     output: str = typer.Option(None, "--output", help="Directory to save under (default: results_dir)"),
+    tz: str = typer.Option("Europe/Berlin", "--tz",
+                           help="IANA time zone of the digest clock and its weekend flag"),
 ):
     """Scan markets and show ideas by investment horizon, with no LLM needed.
 
@@ -410,6 +414,8 @@ def scan(
     is shown as a watch list because it has no measured edge. A research tool, not
     investment advice.
     """
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
     from rich.markup import escape
 
     from tradingagents.dataflows.errors import VendorError
@@ -443,6 +449,10 @@ def scan(
         if lang_ok not in ("en", "de"):
             raise ValueError(_c("err_lang", "en"))
         lang = lang_ok
+        try:
+            ZoneInfo(tz)
+        except (ZoneInfoNotFoundError, ValueError, OSError) as exc:
+            raise ValueError(_c("err_tz", lang, tz=tz)) from exc
         for u in wanted or ["us"]:
             if u not in universe_names():
                 raise ValueError(_c("err_universe", lang, u=u, valid=", ".join(universe_names())))
@@ -500,7 +510,7 @@ def scan(
 
     saved = []
     if digest:
-        text = build_digest([r for r, _ in results], lang, horizons=horizons).text
+        text = build_digest([r for r, _ in results], lang, horizons=horizons, tz=tz).text
         if failures:
             text += "\n\n" + _c("failed_digest", lang, markets=", ".join(n for n, _ in failures))
         typer.echo(text)
@@ -542,7 +552,12 @@ def scan(
                 console.print(f"\n{_c('saved', lang)} {paths['md']}\n       {paths['html']}\n"
                               f"       {paths['json']}\n       {paths['digest']}", soft_wrap=True)
     if not digest:
-        console.print(f"\n[dim]{_c('disclaimer', lang)}[/dim]", soft_wrap=True)
+        from tradingagents.scanner.report import any_size, horizon_views
+        text = _c("disclaimer", lang)
+        if any(r.ideas is not None and any_size(horizon_views(r, horizons))
+               for r, _v, _d in saved):
+            text += " " + _c("disclaimer_sizes", lang)
+        console.print(f"\n[dim]{text}[/dim]", soft_wrap=True)
 
 
 register_scanner_commands(app)
