@@ -84,6 +84,15 @@ worded "technisch stark" / "technisch schwach", never as Long/Short calls.
 - If the data cannot answer (no instrument recognised, no history, no options), say so and show
   what to run instead; never invent a number or an assessment.
 
+## Live trading journal (real money; the owner executes)
+The owner trades a one-off 300 EUR at Trade Republic on Claude's instructions and places every
+order himself. Claude never logs into a broker and never asks for credentials. The rules, every
+instruction and the reported fills are in `docs/trading/journal.md`: read it before answering
+anything about "the depot" or "my trades", and record every new instruction and every fill there.
+In short: no leverage (stocks, UCITS ETFs, spot crypto only), few trades (1 EUR per order),
+positions are held to their time exit, the account stops at 150 EUR. Nothing in the journal is
+evidenced by the studies: say so whenever an instruction is given.
+
 ## Scheduled phone digest
 The digest is produced by `python -m cli.main scan --universe us,dax,global,crypto --digest --lang de --no-save`
 (one or several universes; `--tz` sets the zone of the title clock and weekend flag, default
